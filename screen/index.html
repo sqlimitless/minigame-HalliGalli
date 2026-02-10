@@ -29,6 +29,80 @@
         flex-direction: column;
         align-items: center;
         padding: 20px;
+        position: relative;
+      }
+
+      /* 플레이어 슬롯 (4개 모서리) */
+      .player-slot {
+        position: absolute;
+        width: 120px;
+        padding: 12px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(10px);
+        border: 2px solid rgba(255, 255, 255, 0.1);
+      }
+
+      .player-slot.active {
+        background: rgba(255, 255, 255, 0.15);
+        border-color: rgba(255, 215, 0, 0.5);
+      }
+
+      .player-slot.top-left { top: 20px; left: 20px; }
+      .player-slot.top-right { top: 20px; right: 20px; }
+      .player-slot.bottom-left { bottom: 80px; left: 20px; }
+      .player-slot.bottom-right { bottom: 80px; right: 20px; }
+
+      .player-avatar {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.2);
+        background-size: cover;
+        background-position: center;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 28px;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+      }
+
+      .player-avatar.empty {
+        opacity: 0.5;
+        font-size: 24px;
+        color: rgba(255, 255, 255, 0.5);
+      }
+
+      .player-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: #fff;
+        text-align: center;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .player-status {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #666;
+      }
+
+      .player-status.connected {
+        background: #22c55e;
+        box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+      }
+
+      .player-status.disconnected {
+        background: #ef4444;
       }
 
       .game-title {
@@ -117,11 +191,6 @@
           inset 0 1px 0 rgba(255, 255, 255, 0.2);
       }
 
-      .card-back::before {
-        content: '🔔';
-        font-size: 20px;
-        opacity: 0.8;
-      }
 
       .card-back::after {
         content: '';
