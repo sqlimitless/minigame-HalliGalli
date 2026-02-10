@@ -5,6 +5,7 @@
 import type { Card, GamePhase } from './types';
 import { createDeck, shuffleDeck, renderCard } from './card';
 import { animateCardsEntrance, animateGameStart } from './animation';
+import { hideEmptySlots } from './player';
 
 // 게임 상태
 let gamePhase: GamePhase = 'ready';
@@ -56,6 +57,9 @@ export function startGame(): void {
 
   const startBtn = document.getElementById('startBtn')!;
   startBtn.style.visibility = 'hidden';
+
+  // 접속 안 한 플레이어 슬롯 쓸쓸하게 숨기기
+  hideEmptySlots();
 
   const deckGrid = document.getElementById('deckGrid')!;
 
