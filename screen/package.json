@@ -1,0 +1,17 @@
+{
+  "name": "screen",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build"
+  },
+  "dependencies": {
+    "@smoregg/sdk": "^2.1.0",
+    "gsap": "^3.14.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vite": "^5.4.0"
+  }
+}

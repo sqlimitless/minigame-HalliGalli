@@ -1,0 +1,11 @@
+{
+  "id": "cardbell",
+  "title": "CardBell",
+  "description": "",
+  "minPlayers": 2,
+  "maxPlayers": 8,
+  "categories": [
+    "party"
+  ],
+  "version": "0.1.0"
+}

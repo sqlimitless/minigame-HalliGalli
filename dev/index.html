@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>S'MORE Dev Server</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; background: #0f0f0f; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; overflow: hidden; }
+
+    /* Top bar */
+    .topbar {
+      height: 48px; display: flex; align-items: center; gap: 10px;
+      padding: 0 16px; background: #181818; border-bottom: 1px solid #2a2a2a;
+    }
+    .topbar-title { font-weight: 700; font-size: 14px; color: #fff; letter-spacing: -0.02em; white-space: nowrap; }
+    .topbar-title span { color: #a78bfa; }
+    .badge {
+      background: #a78bfa; color: #0f0f0f; font-weight: 700; font-size: 12px;
+      padding: 2px 8px; border-radius: 5px; letter-spacing: 0.06em; white-space: nowrap;
+    }
+    .badge-muted {
+      background: #2a2a2a; color: #888; font-weight: 600; font-size: 11px;
+      padding: 2px 8px; border-radius: 5px; white-space: nowrap;
+    }
+    .phase-badge {
+      font-weight: 600; font-size: 11px; padding: 2px 8px; border-radius: 5px;
+      white-space: nowrap; text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    .phase-lobby { background: #1a3a1a; color: #4ade80; }
+    .phase-playing { background: #3a2a1a; color: #fbbf24; }
+    .phase-results { background: #1a1a3a; color: #818cf8; }
+    .topbar-spacer { flex: 1; }
+    .btn {
+      background: #2a2a2a; color: #e0e0e0; border: 1px solid #3a3a3a;
+      padding: 5px 12px; border-radius: 6px; font-size: 12px; cursor: pointer;
+      font-weight: 600; transition: background 0.15s; white-space: nowrap;
+    }
+    .btn:hover { background: #3a3a3a; }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn:disabled:hover { background: #2a2a2a; }
+    .btn-primary { background: #4f46e5; border-color: #4f46e5; color: #fff; }
+    .btn-primary:hover { background: #4338ca; }
+    .btn-primary:disabled:hover { background: #4f46e5; }
+    .btn-danger { background: #dc2626; border-color: #dc2626; color: #fff; }
+    .btn-danger:hover { background: #b91c1c; }
+
+    /* Main layout */
+    .main { display: flex; height: calc(100% - 48px); }
+    .screen-panel {
+      flex: 1; position: relative; border-right: 1px solid #2a2a2a;
+      display: flex; align-items: center; justify-content: center; background: #111;
+      overflow: hidden;
+    }
+    .screen-panel iframe {
+      border: none; border-radius: 8px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.05);
+    }
+    .controller-panel {
+      width: 320px; min-width: 320px; max-width: 320px;
+      display: flex; flex-direction: column;
+      padding: 8px; overflow-y: auto; background: #141414;
+    }
+    .controller-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 6px;
+    }
+    .controller-slot {
+      position: relative; border: 1px solid #2a2a2a; border-radius: 8px;
+      overflow: hidden; background: #0f0f0f; aspect-ratio: 9 / 16;
+    }
+    .controller-slot iframe { width: 100%; height: 100%; border: none; display: block; }
+    .controller-label {
+      position: absolute; top: 4px; left: 4px; font-size: 10px;
+      background: rgba(0,0,0,0.75); color: #888; padding: 1px 6px; border-radius: 3px;
+      pointer-events: none; z-index: 1; white-space: nowrap;
+    }
+    .status-dot {
+      width: 6px; height: 6px; border-radius: 50%; display: inline-block;
+      margin-right: 4px; vertical-align: middle;
+    }
+    .status-connected { background: #22c55e; }
+    .status-disconnected { background: #ef4444; }
+    .status-pending { background: #eab308; }
+    .empty-state {
+      display: flex; align-items: center; justify-content: center;
+      height: 200px; color: #444; font-size: 12px; text-align: center;
+      padding: 24px; line-height: 1.5;
+    }
+    .placeholder {
+      display: flex; align-items: center; justify-content: center;
+      height: 100%; color: #555; font-size: 14px;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+      display: flex; align-items: center; justify-content: center; z-index: 100;
+    }
+    .modal-overlay.hidden { display: none; }
+    .modal {
+      background: #1e1e1e; border: 1px solid #3a3a3a; border-radius: 16px;
+      padding: 32px; max-width: 400px; width: 90%; text-align: center;
+    }
+    .modal h2 { font-size: 18px; margin-bottom: 16px; color: #fff; }
+    .modal img { margin: 16px auto; display: block; border-radius: 8px; }
+    .modal .url-text {
+      font-size: 13px; color: #a78bfa; word-break: break-all;
+      background: #2a2a2a; padding: 8px 12px; border-radius: 8px; margin: 12px 0;
+      user-select: all;
+    }
+    .modal .btn { margin-top: 12px; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title"><span>S'MORE</span> Dev</div>
+  <div class="badge" id="roomCode">----</div>
+  <div class="badge-muted" id="playerCount">0 players</div>
+  <div class="phase-badge phase-lobby" id="phaseBadge">Lobby</div>
+  <div class="topbar-spacer"></div>
+  <button class="btn btn-danger" id="endGameBtn" style="display:none;">End Game</button>
+  <button class="btn" id="resetBtn">Reset</button>
+  <button class="btn btn-primary" id="addPlayerBtn">+ Player</button>
+  <button class="btn" id="phoneBtn">Phone</button>
+</div>
+
+<div class="main">
+  <div class="screen-panel" id="screenPanel">
+    <div class="placeholder" id="screenPlaceholder">Waiting for screen app (localhost:5173)...</div>
+  </div>
+  <div class="controller-panel" id="controllerPanel">
+    <div class="empty-state" id="emptyState">Press '+ Player' to add controllers</div>
+    <div class="controller-grid" id="controllerGrid"></div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="phoneModal">
+  <div class="modal">
+    <h2>Open on Phone</h2>
+    <p style="color:#888;font-size:13px;margin-bottom:8px;">Scan the QR code or enter the URL on your phone.</p>
+    <img id="qrImage" width="200" height="200" alt="QR Code" />
+    <div class="url-text" id="phoneUrl"></div>
+    <button class="btn" id="closeModalBtn">Close</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  // ── State ──
+  var SCREEN_URL = 'http://' + location.hostname + ':' + __SCREEN_PORT__;
+  var CONTROLLER_URL = 'http://' + location.hostname + ':' + __CONTROLLER_PORT__;
+  var roomCode = '';
+  var players = [];         // Local iframe controllers only
+  var serverPlayers = [];   // Authoritative full list from server (includes phone players)
+  var screenSocket = null;
+  var screenIframe = null;
+  var screenReady = false;
+  var gamePhase = 'lobby';
+
+  // ── DOM refs ──
+  var roomCodeEl = document.getElementById('roomCode');
+  var playerCountEl = document.getElementById('playerCount');
+  var phaseBadgeEl = document.getElementById('phaseBadge');
+  var screenPanel = document.getElementById('screenPanel');
+  var screenPlaceholder = document.getElementById('screenPlaceholder');
+  var controllerPanel = document.getElementById('controllerPanel');
+  var controllerGrid = document.getElementById('controllerGrid');
+  var emptyState = document.getElementById('emptyState');
+  var addPlayerBtn = document.getElementById('addPlayerBtn');
+  var endGameBtn = document.getElementById('endGameBtn');
+  var resetBtn = document.getElementById('resetBtn');
+
+  // ── Phase management ──
+  function setPhase(phase) {
+    if (phase !== 'lobby' && phase !== 'playing' && phase !== 'results') return;
+    gamePhase = phase;
+    phaseBadgeEl.textContent = phase.charAt(0).toUpperCase() + phase.slice(1);
+    phaseBadgeEl.className = 'phase-badge phase-' + phase;
+    addPlayerBtn.disabled = (phase === 'playing');
+    endGameBtn.style.display = (phase === 'playing') ? 'inline-block' : 'none';
+  }
+
+  // ── Helpers ──
+  function updatePlayerCount() {
+    var count = serverPlayers.length;
+    playerCountEl.textContent = count + ' player' + (count !== 1 ? 's' : '');
+  }
+
+  function updateEmptyState() {
+    emptyState.style.display = players.length === 0 ? 'flex' : 'none';
+  }
+
+  function getPlayerList() {
+    return serverPlayers;
+  }
+
+  function broadcastUpdate() {
+    var payload = { players: serverPlayers };
+    if (screenIframe && screenReady) {
+      screenIframe.contentWindow.postMessage({ type: '_bridge:update', payload: payload }, '*');
+    }
+    players.forEach(function(p) {
+      if (p.iframe && p.ready) {
+        p.iframe.contentWindow.postMessage({ type: '_bridge:update', payload: payload }, '*');
+      }
+    });
+  }
+
+  // ── Screen resize (16:9 fit) ──
+  function resizeScreen() {
+    if (!screenIframe) return;
+    var rect = screenPanel.getBoundingClientRect();
+    var pw = rect.width - 48;
+    var ph = rect.height - 48;
+    if (pw <= 0 || ph <= 0) return;
+    var w, h;
+    if (pw / ph > 16 / 9) {
+      h = ph; w = Math.round(h * 16 / 9);
+    } else {
+      w = pw; h = Math.round(w * 9 / 16);
+    }
+    screenIframe.style.width = w + 'px';
+    screenIframe.style.height = h + 'px';
+  }
+
+  window.addEventListener('resize', resizeScreen);
+
+  // ── Screen setup ──
+  function initScreen(onRoomCreated) {
+    screenSocket = io();
+
+    screenSocket.on('connect', function() {
+      screenSocket.emit('smore:create', {}, function(res) {
+        roomCode = res.code;
+        roomCodeEl.textContent = roomCode;
+        if (onRoomCreated) onRoomCreated();
+      });
+    });
+
+    screenIframe = document.createElement('iframe');
+    screenIframe.src = SCREEN_URL;
+    screenIframe.sandbox = 'allow-scripts allow-same-origin';
+    screenPlaceholder.style.display = 'none';
+    screenPanel.appendChild(screenIframe);
+
+    setTimeout(resizeScreen, 100);
+
+    // Bridge: screen socket.onAny -> iframe smore:event (game events only)
+    screenSocket.onAny(function(event) {
+      if (event.startsWith('smore:')) return;
+      var data = arguments[1];
+      if (screenIframe && screenReady) {
+        screenIframe.contentWindow.postMessage({
+          type: '_bridge:event',
+          payload: { event: event, data: data },
+        }, '*');
+      }
+    });
+
+    // Forward specific smore: system events to screen iframe
+    var screenSysEvents = [
+      'smore:player-joined', 'smore:player-left', 'smore:player-disconnected', 'smore:player-reconnected',
+      'smore:player-character-updated', 'smore:rate-limited', 'smore:game-over', 'smore:all-ready',
+      'smore:self-disconnected', 'smore:self-reconnected'
+    ];
+    screenSysEvents.forEach(function(sysEvent) {
+      screenSocket.on(sysEvent, function(data) {
+        if (screenIframe && screenReady) {
+          screenIframe.contentWindow.postMessage({
+            type: '_bridge:event',
+            payload: { event: sysEvent, data: data },
+          }, '*');
+        }
+
+        // Sync authoritative player list from server (production format: data.room.players)
+        if (data && data.room && data.room.players) {
+          serverPlayers = data.room.players;
+          updatePlayerCount();
+          broadcastUpdate();
+        }
+      });
+    });
+  }
+
+  // ── Controller setup ──
+  function addController() {
+    var controllerSocket = io({ forceNew: true });
+    var idx = players.length;
+    var nickname = 'Player ' + (idx + 1);
+
+    var slot = document.createElement('div');
+    slot.className = 'controller-slot';
+
+    var label = document.createElement('div');
+    label.className = 'controller-label';
+    label.innerHTML = '<span class="status-dot status-pending"></span>P' + (idx + 1);
+    slot.appendChild(label);
+
+    var iframe = document.createElement('iframe');
+    iframe.src = CONTROLLER_URL;
+    iframe.sandbox = 'allow-scripts allow-same-origin';
+    slot.appendChild(iframe);
+    controllerGrid.appendChild(slot);
+
+    var playerData = {
+      playerIndex: -1, nickname: nickname, sessionId: '',
+      socket: controllerSocket, iframe: iframe, label: label, slot: slot,
+      connected: false, ready: false,
+    };
+    players.push(playerData);
+    updatePlayerCount();
+    updateEmptyState();
+
+    controllerSocket.on('connect', function() {
+      controllerSocket.emit('smore:join', { nickname: nickname, roomCode: roomCode }, function(res) {
+        if (!res || !res.success) return;
+        playerData.playerIndex = res.playerIndex;
+        playerData.sessionId = res.sessionId;
+        playerData.connected = true;
+        label.innerHTML = '<span class="status-dot status-connected"></span>P' + (res.playerIndex + 1);
+      });
+    });
+
+    controllerSocket.on('disconnect', function() {
+      playerData.connected = false;
+      label.innerHTML = '<span class="status-dot status-disconnected"></span>P' + (playerData.playerIndex >= 0 ? playerData.playerIndex + 1 : '?');
+    });
+
+    // Bridge: controller socket.onAny -> iframe smore:event (game events only)
+    controllerSocket.onAny(function(event) {
+      if (event.startsWith('smore:')) return;
+      var data = arguments[1];
+      if (iframe && playerData.ready) {
+        iframe.contentWindow.postMessage({
+          type: '_bridge:event',
+          payload: { event: event, data: data },
+        }, '*');
+      }
+    });
+
+    // Forward system events to controller iframe
+    var ctrlSysEvents = [
+      'smore:game-over',
+      'smore:player-joined', 'smore:player-left', 'smore:player-disconnected', 'smore:player-reconnected',
+      'smore:player-character-updated', 'smore:rate-limited', 'smore:all-ready',
+      'smore:self-disconnected', 'smore:self-reconnected'
+    ];
+    ctrlSysEvents.forEach(function(sysEvent) {
+      controllerSocket.on(sysEvent, function(data) {
+        if (iframe && playerData.ready) {
+          iframe.contentWindow.postMessage({
+            type: '_bridge:event',
+            payload: { event: sysEvent, data: data },
+          }, '*');
+        }
+      });
+    });
+  }
+
+  // ── postMessage listener (from all iframes) ──
+  window.addEventListener('message', function(e) {
+    var msg = e.data;
+    if (!msg || typeof msg !== 'object' || typeof msg.type !== 'string') return;
+    if (!msg.type.startsWith('_bridge:')) return;
+
+    if (screenIframe && e.source === screenIframe.contentWindow) {
+      handleScreenMessage(msg);
+    } else {
+      var player = players.find(function(p) { return p.iframe && e.source === p.iframe.contentWindow; });
+      if (player) handleControllerMessage(msg, player);
+    }
+  });
+
+  function handleScreenMessage(msg) {
+    if (msg.type === '_bridge:ready') {
+      screenReady = true;
+      screenIframe.contentWindow.postMessage({
+        type: '_bridge:init',
+        payload: {
+          side: 'host',
+          roomCode: roomCode,
+          players: getPlayerList(),
+          protocolVersion: 1,
+        },
+      }, '*');
+      return;
+    }
+
+    if (msg.type === '_bridge:emit') {
+      var event = msg.payload.event;
+      var data = msg.payload.data;
+      var ackId = msg.payload.ackId;
+
+      // Phase tracking from screen messages
+      if (data && typeof data === 'object' && data.phase) {
+        if (data.phase === 'lobby' || data.phase === 'playing' || data.phase === 'results') {
+          setPhase(data.phase);
+        }
+      }
+
+      // Intercept game-over to broadcast via system event and update phase
+      if (event === 'smore:game-over') {
+        setPhase('results');
+        screenSocket.emit('smore:game-over', data);
+        return;
+      }
+
+      // Relay game-ready to server for ready/start sync
+      if (event === 'smore:game-ready') {
+        screenSocket.emit('smore:game-ready', data || {});
+        return;
+      }
+
+      // Block smore:* events from crossing the bridge
+      if (event.startsWith('smore:')) return;
+
+      if (ackId) {
+        screenSocket.emit(event, data, function(response) {
+          screenIframe.contentWindow.postMessage({ type: '_bridge:ack', payload: { ackId: ackId, data: response } }, '*');
+        });
+      } else {
+        screenSocket.emit(event, data);
+      }
+    }
+  }
+
+  function handleControllerMessage(msg, player) {
+    if (msg.type === '_bridge:ready') {
+      player.ready = true;
+      player.iframe.contentWindow.postMessage({
+        type: '_bridge:init',
+        payload: {
+          side: 'player',
+          roomCode: roomCode,
+          players: getPlayerList(),
+          myIndex: player.playerIndex,
+          protocolVersion: 1,
+        },
+      }, '*');
+      return;
+    }
+
+    if (msg.type === '_bridge:emit') {
+      var event = msg.payload.event;
+      var data = msg.payload.data;
+      var ackId = msg.payload.ackId;
+
+      // Phase tracking from controller messages
+      if (event === 'start-game' || event === 'start') {
+        setPhase('playing');
+      }
+      if (event === 'play-again' || event === 'restart') {
+        setPhase('lobby');
+      }
+
+      // Relay game-ready to server for ready/start sync
+      if (event === 'smore:game-ready') {
+        player.socket.emit('smore:game-ready', data || {});
+        return;
+      }
+
+      // Block smore:* events
+      if (event.startsWith('smore:')) return;
+
+      if (ackId) {
+        player.socket.emit(event, data, function(response) {
+          player.iframe.contentWindow.postMessage({ type: '_bridge:ack', payload: { ackId: ackId, data: response } }, '*');
+        });
+      } else {
+        player.socket.emit(event, data);
+      }
+    }
+  }
+
+  // ── End Game ──
+  function endGame() {
+    // Broadcast phase-change to ALL controllers (including phone) via server relay
+    screenSocket.emit('phase-change', { phase: 'lobby' });
+
+    // Reload screen iframe
+    if (screenIframe) {
+      screenReady = false;
+      screenIframe.src = SCREEN_URL;
+    }
+    // Reload local controller iframes (phone controllers get the broadcast above)
+    players.forEach(function(p) {
+      p.ready = false;
+      if (p.iframe) {
+        p.iframe.src = CONTROLLER_URL;
+      }
+    });
+    setPhase('lobby');
+  }
+
+  // ── Reset ──
+  function resetAll() {
+    // 1. Disconnect all local iframe player sockets
+    players.forEach(function(p) {
+      if (p.socket) p.socket.disconnect();
+    });
+    players = [];
+    serverPlayers = [];
+
+    // 2. Clear UI
+    updatePlayerCount();
+    controllerGrid.innerHTML = '';
+    updateEmptyState();
+    roomCode = '';
+    roomCodeEl.textContent = '----';
+    setPhase('lobby');
+
+    // 3. Remove old screen iframe
+    if (screenIframe) {
+      screenIframe.remove();
+      screenIframe = null;
+      screenReady = false;
+    }
+
+    // 4. Tell dev server to reset room (disconnects all phone player sockets)
+    //    Then disconnect host and re-initialize fresh
+    var oldSocket = screenSocket;
+    screenSocket = null;
+    if (oldSocket) {
+      oldSocket.emit('smore:reset-room', {}, function() {
+        oldSocket.disconnect();
+        initScreen(function() { addController(); });
+      });
+      // Fallback if callback doesn't fire
+      setTimeout(function() {
+        if (!screenSocket) {
+          oldSocket.disconnect();
+          initScreen(function() { addController(); });
+        }
+      }, 1000);
+    } else {
+      initScreen(function() { addController(); });
+    }
+  }
+
+  // ── Button handlers ──
+  addPlayerBtn.addEventListener('click', function() {
+    if (!addPlayerBtn.disabled) addController();
+  });
+
+  endGameBtn.addEventListener('click', endGame);
+  resetBtn.addEventListener('click', resetAll);
+
+  document.getElementById('phoneBtn').addEventListener('click', function() {
+    var phoneUrl = 'http://__LOCAL_IP__:' + __SERVER_PORT__ + '/controller';
+    document.getElementById('phoneUrl').textContent = phoneUrl;
+    // Note: QR code generation requires external service (api.qrserver.com)
+    // If offline, the URL text below can be manually entered on the phone
+    document.getElementById('qrImage').src =
+      'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=' + encodeURIComponent(phoneUrl);
+    document.getElementById('qrImage').onerror = function() { this.style.display='none'; };
+    document.getElementById('phoneModal').classList.remove('hidden');
+  });
+
+  document.getElementById('closeModalBtn').addEventListener('click', function() {
+    document.getElementById('phoneModal').classList.add('hidden');
+  });
+
+  // ── Boot ──
+  initScreen();
+  setTimeout(function() { addController(); }, 500);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>cardbell - Controller</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body {
+        width: 100%; height: 100vh; height: 100dvh;
+        background: #0f0f0f; color: #fff; font-family: sans-serif;
+        overflow: hidden; overscroll-behavior: none;
+        touch-action: manipulation; user-select: none;
+        -webkit-user-select: none;
+      }
+      #app {
+        position: fixed; inset: 0;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 24px;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      }
+      #player-info { font-size: 16px; opacity: 0.6; }
+      #count { font-size: 48px; font-weight: bold; }
+      #tap-btn {
+        width: 200px; height: 200px; border-radius: 50%;
+        background: #4f46e5; border: none; color: #fff;
+        font-size: 24px; font-weight: bold; cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #tap-btn:active { background: #4338ca; }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="player-info"></div>
+      <div id="count">0</div>
+      <button id="tap-btn">TAP</button>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

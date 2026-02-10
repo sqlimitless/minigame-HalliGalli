@@ -1,0 +1,20 @@
+{
+  "name": "CardBell",
+  "private": true,
+  "workspaces": [
+    "screen",
+    "controller"
+  ],
+  "scripts": {
+    "dev": "node dev/server.js",
+    "dev:screen": "npm run dev -w screen",
+    "dev:controller": "npm run dev -w controller",
+    "build": "npm run build --workspaces --if-present",
+    "zip": "npm run build --workspaces --if-present && cp game.json dist/ && cd dist && zip -r ../game.zip ."
+  },
+  "devDependencies": {
+    "socket.io": "^4.7.0",
+    "express": "^4.18.0",
+    "cors": "^2.8.5"
+  }
+}

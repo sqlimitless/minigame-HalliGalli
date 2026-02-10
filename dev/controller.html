@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>S'MORE Controller</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%; height: 100vh; height: 100dvh;
+      background: #0f0f0f; color: #fff; font-family: sans-serif;
+      overflow: hidden; overscroll-behavior: none;
+    }
+    .container {
+      position: fixed; inset: 0;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right)
+               env(safe-area-inset-bottom) env(safe-area-inset-left);
+      touch-action: manipulation; user-select: none;
+      -webkit-user-select: none; -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .loading {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 100%; gap: 16px;
+    }
+    .loading-text { font-size: 16px; color: #888; }
+    .loading .spinner {
+      width: 32px; height: 32px; border: 3px solid #333; border-top-color: #a78bfa;
+      border-radius: 50%; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    iframe {
+      position: fixed; inset: 0; width: 100%; height: 100%;
+      border: none; background: #0f0f0f;
+    }
+    iframe.hidden { display: none; }
+  </style>
+</head>
+<body>
+
+<div class="container" id="loadingScreen">
+  <div class="loading">
+    <div class="spinner"></div>
+    <div class="loading-text">Connecting...</div>
+  </div>
+</div>
+
+<iframe id="controllerFrame" class="hidden" sandbox="allow-scripts allow-same-origin"></iframe>
+
+<script>
+(function() {
+  var CONTROLLER_URL = 'http://' + location.hostname + ':' + __CONTROLLER_PORT__;
+  var loadingScreen = document.getElementById('loadingScreen');
+  var iframe = document.getElementById('controllerFrame');
+
+  var socket = null;
+  var playerIndex = -1;
+  var sessionId = '';
+  var roomCode = '';
+  var players = [];
+  var iframeReady = false;
+
+  // Connect and join room
+  socket = io();
+
+  socket.on('connect', function() {
+    var nickname = 'Phone Player';
+    socket.emit('smore:join', { nickname: nickname }, function(res) {
+      if (!res || !res.success) return;
+      playerIndex = res.playerIndex;
+      sessionId = res.sessionId;
+      roomCode = res.roomCode;
+      players = (res.room && res.room.players) || [];
+
+      // Show iframe
+      iframe.src = CONTROLLER_URL;
+      iframe.classList.remove('hidden');
+      loadingScreen.style.display = 'none';
+    });
+  });
+
+  // Bridge: socket -> iframe (game events only)
+  socket.onAny(function(event) {
+    if (event.startsWith('smore:')) return;
+    var data = arguments[1];
+    if (iframe && iframeReady) {
+      iframe.contentWindow.postMessage({
+        type: '_bridge:event',
+        payload: { event: event, data: data },
+      }, '*');
+    }
+  });
+
+  // Forward system events to iframe
+  var sysEvents = [
+    'smore:game-over',
+    'smore:player-joined', 'smore:player-left', 'smore:player-disconnected', 'smore:player-reconnected',
+    'smore:player-character-updated', 'smore:rate-limited', 'smore:all-ready',
+    'smore:self-disconnected', 'smore:self-reconnected'
+  ];
+  sysEvents.forEach(function(sysEvent) {
+    socket.on(sysEvent, function(data) {
+      if (iframe && iframeReady) {
+        iframe.contentWindow.postMessage({
+          type: '_bridge:event',
+          payload: { event: sysEvent, data: data },
+        }, '*');
+      }
+      // Update local player list (production format: data.room.players)
+      if (data && data.room && data.room.players) {
+        players = data.room.players;
+      }
+    });
+  });
+
+  // Handle kicked (room reset by host)
+  socket.on('smore:kicked', function() {
+    // Stop reconnection
+    socket.io.opts.reconnection = false;
+    socket.disconnect();
+    // Replace page with disconnected screen
+    document.body.innerHTML = '<div style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0f0f0f;color:#fff;font-family:sans-serif;gap:16px;padding:24px;text-align:center;">' +
+      '<div style="font-size:48px;">👋</div>' +
+      '<div style="font-size:20px;font-weight:700;">Room Closed</div>' +
+      '<div style="font-size:14px;color:#888;">The host has reset the room.</div>' +
+      '</div>';
+  });
+
+  // Bridge: iframe -> socket (postMessage)
+  window.addEventListener('message', function(e) {
+    if (e.source !== iframe.contentWindow) return;
+    var msg = e.data;
+    if (!msg || typeof msg !== 'object' || typeof msg.type !== 'string') return;
+    if (!msg.type.startsWith('_bridge:')) return;
+
+    if (msg.type === '_bridge:ready') {
+      iframeReady = true;
+      iframe.contentWindow.postMessage({
+        type: '_bridge:init',
+        payload: {
+          side: 'player',
+          roomCode: roomCode,
+          players: players,
+          myIndex: playerIndex,
+          protocolVersion: 1,
+        },
+      }, '*');
+    }
+
+    if (msg.type === '_bridge:emit') {
+      var event = msg.payload.event;
+      var data = msg.payload.data;
+      var ackId = msg.payload.ackId;
+
+      // Relay game-ready to server for ready/start sync
+      if (event === 'smore:game-ready') {
+        socket.emit('smore:game-ready', data || {});
+        return;
+      }
+
+      // Block smore:* events
+      if (event.startsWith('smore:')) return;
+
+      if (ackId) {
+        socket.emit(event, data, function(response) {
+          iframe.contentWindow.postMessage({ type: '_bridge:ack', payload: { ackId: ackId, data: response } }, '*');
+        });
+      } else {
+        socket.emit(event, data);
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
