@@ -23,7 +23,6 @@ interface GameEvents {
 }
 
 const screen = createScreen<GameEvents>({ debug: true });
-
 // SDK 이벤트 핸들러
 screen.onAllReady(() => {
   console.log('Room ready:', screen.roomCode);

@@ -50,7 +50,6 @@ export function renderCard(card: Card, index: number): string {
       <div class="card-inner">
         <div class="card-front">
           <div class="card-fruits">${fruits}</div>
-          <div class="card-count">${card.count}</div>
         </div>
         <div class="card-back"></div>
       </div>

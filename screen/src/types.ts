@@ -10,7 +10,13 @@ export interface Card {
   count: number;
 }
 
-export type GamePhase = 'ready' | 'shuffling' | 'playing';
+export type GamePhase = 'ready' | 'shuffling' | 'distributing' | 'playing';
+
+// 플레이어별 카드 더미
+export interface PlayerDeck {
+  playerIndex: number;
+  cards: Card[];
+}
 
 export interface CardTarget {
   el: HTMLElement;

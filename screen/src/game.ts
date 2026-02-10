@@ -4,7 +4,7 @@
 
 import type { Card, GamePhase } from './types';
 import { createDeck, shuffleDeck, renderCard } from './card';
-import { animateCardsEntrance, animateGameStart } from './animation';
+import { animateCardsEntrance, animateGameStart, animateCardDistribution, animateBellDescent, animateFlipRemainingCards } from './animation';
 import { hideEmptySlots } from './player';
 
 // 게임 상태
@@ -64,7 +64,20 @@ export function startGame(): void {
   const deckGrid = document.getElementById('deckGrid')!;
 
   animateGameStart(deckGrid, () => {
-    gamePhase = 'playing';
-    console.log('게임 준비 완료! 카드가 섞였습니다.');
+    gamePhase = 'distributing';
+
+    // 활성화된 플레이어 수 계산
+    const playerCount = document.querySelectorAll('.player-slot.active').length;
+
+    animateCardDistribution(playerCount, () => {
+      // 종 강림 애니메이션
+      animateBellDescent(() => {
+        // 남은 카드 뒤집기
+        animateFlipRemainingCards(() => {
+          gamePhase = 'playing';
+          console.log('게임 시작!');
+        });
+      });
+    });
   });
 }
