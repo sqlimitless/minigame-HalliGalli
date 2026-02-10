@@ -3,7 +3,7 @@
 // ============================================
 
 import { gsap } from 'gsap';
-import type { CardTarget } from './types';
+import type { Card, CardTarget } from './types';
 
 // 카드 등장 애니메이션
 export function animateCardsEntrance(): void {
@@ -161,6 +161,8 @@ function animateAlignCards(
 
 export function animateCardDistribution(
   playerCount: number,
+  deck: Card[],
+  onCardDealt: (playerIndex: number, card: Card) => void,
   onComplete: () => void
 ): void {
   const cards = Array.from(document.querySelectorAll('.card')) as HTMLElement[];
@@ -172,12 +174,12 @@ export function animateCardDistribution(
     return;
   }
 
-  // 활성화된 플레이어 슬롯 가져오기
-  const playerSlots: HTMLElement[] = [];
+  // 활성화된 플레이어 슬롯 가져오기 (실제 playerIndex 저장)
+  const playerSlots: { el: HTMLElement; playerIndex: number }[] = [];
   for (let i = 0; i < 4; i++) {
     const slot = document.getElementById(`player-${i}`);
     if (slot && slot.classList.contains('active')) {
-      playerSlots.push(slot);
+      playerSlots.push({ el: slot, playerIndex: i });
     }
   }
 
@@ -190,11 +192,11 @@ export function animateCardDistribution(
   const cardsPerPlayer = Math.floor(totalCards / playerSlots.length);
 
   // 카드를 플레이어별로 분배 (라운드 로빈)
-  const playerCards: HTMLElement[][] = playerSlots.map(() => []);
+  const playerCards: { el: HTMLElement; card: Card }[][] = playerSlots.map(() => []);
   for (let i = 0; i < cardsPerPlayer * playerSlots.length; i++) {
     const playerIdx = i % playerSlots.length;
-    playerCards[playerIdx].push(cards[i]);
-    cards[i].dataset.owner = String(playerIdx);
+    playerCards[playerIdx].push({ el: cards[i], card: deck[i] });
+    cards[i].dataset.owner = String(playerSlots[playerIdx].playerIndex);
   }
 
   const tl = gsap.timeline({ onComplete });
@@ -203,40 +205,44 @@ export function animateCardDistribution(
   tl.addLabel('distributeStart', '+=0.3');
 
   // 각 플레이어에게 카드 묶음으로 빠르게 분배
-  playerSlots.forEach((slot, playerIdx) => {
-    const slotRect = slot.getBoundingClientRect();
-    const myCards = playerCards[playerIdx];
+  playerSlots.forEach((slotInfo, idx) => {
+    const slotRect = slotInfo.el.getBoundingClientRect();
+    const myCards = playerCards[idx];
 
-    myCards.forEach((card, cardIdx) => {
-      const cardRect = card.getBoundingClientRect();
+    myCards.forEach((cardInfo, cardIdx) => {
+      const cardRect = cardInfo.el.getBoundingClientRect();
 
       // 현재 카드 위치에서 슬롯까지의 거리 계산
       const deltaX = slotRect.left + slotRect.width / 2 - (cardRect.left + cardRect.width / 2);
       const deltaY = slotRect.bottom + 20 - (cardRect.top + cardRect.height / 2);
 
       // 현재 transform 값 가져오기
-      const currentX = gsap.getProperty(card, 'x') as number;
-      const currentY = gsap.getProperty(card, 'y') as number;
+      const currentX = gsap.getProperty(cardInfo.el, 'x') as number;
+      const currentY = gsap.getProperty(cardInfo.el, 'y') as number;
 
       // 카드 날아가는 애니메이션
-      tl.to(card, {
+      tl.to(cardInfo.el, {
         x: currentX + deltaX,
         y: currentY + deltaY + cardIdx * 0.3,
         rotation: (Math.random() - 0.5) * 8,
         scale: 0.7,
         duration: 0.4,
         ease: 'power2.out',
-      }, `distributeStart+=${playerIdx * 0.15 + cardIdx * 0.1}`);
+        onComplete: () => {
+          // 컨트롤러에 카드 분배 이벤트 전송
+          onCardDealt(slotInfo.playerIndex, cardInfo.card);
+        },
+      }, `distributeStart+=${idx * 0.15 + cardIdx * 0.1}`);
     });
   });
 
   // 분배 완료 후 정돈
   tl.addLabel('tidyUp', '+=0.2');
 
-  playerSlots.forEach((_, playerIdx) => {
-    const myCards = playerCards[playerIdx];
-    myCards.forEach((card) => {
-      tl.to(card, {
+  playerSlots.forEach((_, idx) => {
+    const myCards = playerCards[idx];
+    myCards.forEach((cardInfo) => {
+      tl.to(cardInfo.el, {
         rotation: 0,
         duration: 0.15,
         ease: 'power2.out',
@@ -267,7 +273,7 @@ export function animateCardDistribution(
 
       // 몇 번째 플레이어 방향인지
       const targetPlayerIdx = i % playerSlots.length;
-      const targetSlot = playerSlots[targetPlayerIdx];
+      const targetSlot = playerSlots[targetPlayerIdx].el;
       const slotRect = targetSlot.getBoundingClientRect();
 
       // 슬롯 중앙 위치 (덱 영역 기준)

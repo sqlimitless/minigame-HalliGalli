@@ -6,6 +6,7 @@ import type { Card, GamePhase } from './types';
 import { createDeck, shuffleDeck, renderCard } from './card';
 import { animateCardsEntrance, animateGameStart, animateCardDistribution, animateBellDescent, animateFlipRemainingCards } from './animation';
 import { hideEmptySlots } from './player';
+import { sendCardDealt, sendBellDescent, sendGameStart } from './sdk';
 
 // 게임 상태
 let gamePhase: GamePhase = 'ready';
@@ -69,12 +70,14 @@ export function startGame(): void {
     // 활성화된 플레이어 수 계산
     const playerCount = document.querySelectorAll('.player-slot.active').length;
 
-    animateCardDistribution(playerCount, () => {
-      // 종 강림 애니메이션
+    animateCardDistribution(playerCount, deck, sendCardDealt, () => {
+      // 종 강림 애니메이션 (컨트롤러에도 동시 전송)
+      sendBellDescent();
       animateBellDescent(() => {
         // 남은 카드 뒤집기
         animateFlipRemainingCards(() => {
           gamePhase = 'playing';
+          sendGameStart();
           console.log('게임 시작!');
         });
       });

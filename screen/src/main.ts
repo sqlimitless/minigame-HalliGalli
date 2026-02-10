@@ -2,9 +2,9 @@
 // 진입점 - S'MORE SDK 연결
 // ============================================
 
-import { createScreen } from '@smoregg/sdk';
 import { renderGame, startGame } from './game';
 import { updatePlayerSlots } from './player';
+import { screen } from './sdk';
 
 // ============================================
 // 초기화
@@ -14,16 +14,9 @@ const appEl = document.getElementById('app')!;
 renderGame(appEl, startGame);
 
 // ============================================
-// S'MORE SDK 연결
+// S'MORE SDK 이벤트 핸들러
 // ============================================
 
-interface GameEvents {
-  'bell-hit': { timestamp: number };
-  [key: string]: Record<string, unknown>;
-}
-
-const screen = createScreen<GameEvents>({ debug: true });
-// SDK 이벤트 핸들러
 screen.onAllReady(() => {
   console.log('Room ready:', screen.roomCode);
   updatePlayerSlots(screen.controllers);
