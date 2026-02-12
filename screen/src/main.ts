@@ -2,7 +2,7 @@
 // 진입점 - S'MORE SDK 연결
 // ============================================
 
-import { renderGame, startGame } from './game';
+import { renderGame, startGame, handleCardPlay, handleBellHit } from './game';
 import { updatePlayerSlots } from './player';
 import { screen } from './sdk';
 
@@ -18,31 +18,30 @@ renderGame(appEl, startGame);
 // ============================================
 
 screen.onAllReady(() => {
-  console.log('Room ready:', screen.roomCode);
   updatePlayerSlots(screen.controllers);
 });
 
 screen.onControllerJoin((playerIndex) => {
-  console.log('Player joined:', playerIndex);
   updatePlayerSlots(screen.controllers);
 });
 
 screen.onControllerLeave((playerIndex) => {
-  console.log('Player left:', playerIndex);
   updatePlayerSlots(screen.controllers);
 });
 
 screen.onControllerDisconnect((playerIndex) => {
-  console.log('Player disconnected:', playerIndex);
   updatePlayerSlots(screen.controllers);
 });
 
 screen.onControllerReconnect?.((playerIndex) => {
-  console.log('Player reconnected:', playerIndex);
   updatePlayerSlots(screen.controllers);
 });
 
 // 게임 이벤트
+screen.on('card-play', (playerIndex, data) => {
+  handleCardPlay(playerIndex, data.velocity);
+});
+
 screen.on('bell-hit', (playerIndex, data) => {
-  console.log(`Player ${playerIndex} hit the bell at ${data.timestamp}`);
+  handleBellHit(playerIndex, data.timestamp);
 });

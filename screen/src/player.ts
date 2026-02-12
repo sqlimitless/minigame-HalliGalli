@@ -5,6 +5,9 @@
 import { gsap } from 'gsap';
 import type { ControllerInfo } from '@smoregg/sdk';
 
+// 반응형 크기 계산 (vmin 기반)
+const vmin = (v: number): number => Math.min(window.innerWidth, window.innerHeight) * v / 100;
+
 // 이전 상태 추적 (새 플레이어 감지용)
 const previousPlayerState: Map<number, boolean> = new Map();
 
@@ -131,12 +134,12 @@ function animateEntrance_Explosion(slot: HTMLElement): void {
   }
 
   // 4. 호들갑 흔들기!! (중앙에서)
-  tl.to(slot, { x: toCenterX - 50, rotation: -25, duration: 0.04 });
-  tl.to(slot, { x: toCenterX + 50, rotation: 25, duration: 0.04 });
-  tl.to(slot, { x: toCenterX - 40, rotation: -20, duration: 0.04 });
-  tl.to(slot, { x: toCenterX + 40, rotation: 20, duration: 0.04 });
-  tl.to(slot, { x: toCenterX - 25, rotation: -12, duration: 0.04 });
-  tl.to(slot, { x: toCenterX + 25, rotation: 12, duration: 0.04 });
+  tl.to(slot, { x: toCenterX - vmin(5), rotation: -25, duration: 0.04 });
+  tl.to(slot, { x: toCenterX + vmin(5), rotation: 25, duration: 0.04 });
+  tl.to(slot, { x: toCenterX - vmin(4), rotation: -20, duration: 0.04 });
+  tl.to(slot, { x: toCenterX + vmin(4), rotation: 20, duration: 0.04 });
+  tl.to(slot, { x: toCenterX - vmin(2.5), rotation: -12, duration: 0.04 });
+  tl.to(slot, { x: toCenterX + vmin(2.5), rotation: 12, duration: 0.04 });
   tl.to(slot, { x: toCenterX, rotation: 0, duration: 0.04 });
 
   // 5. 잠깐 뽐내기 (중앙에서 포즈)
@@ -208,31 +211,32 @@ function animateEntrance_WalkIn(slot: HTMLElement): void {
   floatingAvatar.innerHTML = avatar.innerHTML;
 
   // 시작 위치 (game-container 상단 중앙, 컨테이너 밖)
-  const startX = containerRect.left + containerRect.width / 2 - 40;
-  const startY = containerRect.top - 120; // 컨테이너 위쪽 (밖)
+  const avatarHalfSize = vmin(4);
+  const startX = containerRect.left + containerRect.width / 2 - avatarHalfSize;
+  const startY = containerRect.top - vmin(12); // 컨테이너 위쪽 (밖)
 
   // 착지 위치 (game-container 상단 안쪽)
-  const landY = containerRect.top + 100;
+  const landY = containerRect.top + vmin(10);
 
   // 목표 위치 (슬롯의 아바타 위치)
-  const targetX = slotRect.left + slotRect.width / 2 - 40;
-  const targetY = slotRect.top + 20;
+  const targetX = slotRect.left + slotRect.width / 2 - avatarHalfSize;
+  const targetY = slotRect.top + vmin(2);
 
   floatingAvatar.style.cssText = `
     position: fixed;
     left: ${startX}px;
     top: ${startY}px;
-    width: 80px;
-    height: 80px;
+    width: ${vmin(8)}px;
+    height: ${vmin(8)}px;
     border-radius: 50%;
     background: ${getComputedStyle(avatar).background};
     background-size: cover;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 36px;
-    border: 4px solid #ffd700;
-    box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+    font-size: ${vmin(3.6)}px;
+    border: ${vmin(0.4)}px solid #ffd700;
+    box-shadow: 0 0 ${vmin(2)}px rgba(255, 215, 0, 0.5);
     z-index: 99999;
     pointer-events: none;
     transform: scale(2);
@@ -283,7 +287,7 @@ function animateEntrance_WalkIn(slot: HTMLElement): void {
     // 걷기 - 위아래로 통통
     tl.to(floatingAvatar, {
       left: currentX,
-      top: currentY - 20,
+      top: currentY - vmin(2),
       rotation: i % 2 === 0 ? -15 : 15,
       duration: 0.08,
       ease: 'power1.out',
@@ -373,27 +377,29 @@ function animateEntrance_MagicCircle(slot: HTMLElement): void {
   gsap.set(slot, { opacity: 0, scale: 0 });
 
   // 마법진 생성
+  const circleSize = vmin(15);
+  const circleHalf = circleSize / 2;
   const magicCircle = document.createElement('div');
   magicCircle.innerHTML = `
     <div style="
-      width: 150px;
-      height: 150px;
-      border: 4px solid #a855f7;
+      width: ${circleSize}px;
+      height: ${circleSize}px;
+      border: ${vmin(0.4)}px solid #a855f7;
       border-radius: 50%;
       position: relative;
-      box-shadow: 0 0 30px #a855f7, inset 0 0 30px rgba(168, 85, 247, 0.3);
+      box-shadow: 0 0 ${vmin(3)}px #a855f7, inset 0 0 ${vmin(3)}px rgba(168, 85, 247, 0.3);
     ">
       <div style="
         position: absolute;
-        inset: 10px;
-        border: 2px solid #c084fc;
+        inset: ${vmin(1)}px;
+        border: ${vmin(0.2)}px solid #c084fc;
         border-radius: 50%;
         animation: spin 2s linear infinite;
       "></div>
       <div style="
         position: absolute;
-        inset: 25px;
-        border: 2px dashed #e879f9;
+        inset: ${vmin(2.5)}px;
+        border: ${vmin(0.2)}px dashed #e879f9;
         border-radius: 50%;
         animation: spin 1.5s linear reverse infinite;
       "></div>
@@ -402,14 +408,14 @@ function animateEntrance_MagicCircle(slot: HTMLElement): void {
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
-        font-size: 30px;
+        font-size: ${vmin(3)}px;
       ">✨</div>
     </div>
   `;
   magicCircle.style.cssText = `
     position: fixed;
-    left: ${slotRect.left + slotRect.width / 2 - 75}px;
-    top: ${slotRect.top + slotRect.height / 2 - 75}px;
+    left: ${slotRect.left + slotRect.width / 2 - circleHalf}px;
+    top: ${slotRect.top + slotRect.height / 2 - circleHalf}px;
     z-index: 99999;
     pointer-events: none;
   `;
@@ -483,16 +489,18 @@ function animateEntrance_Ninja(slot: HTMLElement): void {
   gsap.set(slot, { opacity: 0, scale: 0 });
 
   // 연기 생성
+  const smokeSize = vmin(12);
+  const smokeHalf = smokeSize / 2;
   const smoke = document.createElement('div');
   smoke.style.cssText = `
     position: fixed;
-    left: ${slotRect.left + slotRect.width / 2 - 60}px;
-    top: ${slotRect.top + slotRect.height / 2 - 60}px;
-    width: 120px;
-    height: 120px;
+    left: ${slotRect.left + slotRect.width / 2 - smokeHalf}px;
+    top: ${slotRect.top + slotRect.height / 2 - smokeHalf}px;
+    width: ${smokeSize}px;
+    height: ${smokeSize}px;
     z-index: 99999;
     pointer-events: none;
-    font-size: 80px;
+    font-size: ${vmin(8)}px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -592,15 +600,15 @@ function animateEntrance_SlotMachine(slot: HTMLElement): void {
   // 릴 표시 영역
   const reel = document.createElement('div');
   reel.style.cssText = `
-    width: 60px;
-    height: 60px;
+    width: ${vmin(6)}px;
+    height: ${vmin(6)}px;
     background: #222;
-    border-radius: 8px;
+    border-radius: ${vmin(0.8)}px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 36px;
-    border: 2px solid #555;
+    font-size: ${vmin(3.6)}px;
+    border: ${vmin(0.2)}px solid #555;
   `;
   reel.textContent = '🎰';
   slotMachine.appendChild(reel);
@@ -706,23 +714,24 @@ function animateEntrance_Balloon(slot: HTMLElement): void {
   // 풍선 + 캐릭터 생성
   const balloon = document.createElement('div');
   balloon.innerHTML = `
-    <div style="font-size: 60px; text-align: center;">🎈</div>
+    <div style="font-size: ${vmin(6)}px; text-align: center;">🎈</div>
     <div style="
-      width: 60px;
-      height: 60px;
+      width: ${vmin(6)}px;
+      height: ${vmin(6)}px;
       background: rgba(255,255,255,0.9);
       border-radius: 50%;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 30px;
-      margin: -10px auto 0;
-      border: 3px solid #ffd700;
+      font-size: ${vmin(3)}px;
+      margin: ${-vmin(1)}px auto 0;
+      border: ${vmin(0.3)}px solid #ffd700;
     ">👤</div>
   `;
 
-  const startX = containerRect.left + containerRect.width / 2 - 40;
-  const startY = containerRect.top - 150;
+  const balloonHalfSize = vmin(4);
+  const startX = containerRect.left + containerRect.width / 2 - balloonHalfSize;
+  const startY = containerRect.top - vmin(15);
 
   balloon.style.cssText = `
     position: fixed;
@@ -733,7 +742,7 @@ function animateEntrance_Balloon(slot: HTMLElement): void {
   `;
   document.body.appendChild(balloon);
 
-  const targetX = slotRect.left + slotRect.width / 2 - 40;
+  const targetX = slotRect.left + slotRect.width / 2 - balloonHalfSize;
   const targetY = slotRect.top;
 
   const tl = gsap.timeline();
@@ -745,7 +754,7 @@ function animateEntrance_Balloon(slot: HTMLElement): void {
   for (let i = 0; i <= steps; i++) {
     const progress = i / steps;
     const currentY = startY + (targetY - startY) * progress;
-    const wobbleX = Math.sin(progress * Math.PI * 4) * 30;
+    const wobbleX = Math.sin(progress * Math.PI * 4) * vmin(3);
     const wobbleRotation = Math.sin(progress * Math.PI * 3) * 15;
 
     tl.to(balloon, {
@@ -778,7 +787,7 @@ function animateEntrance_Balloon(slot: HTMLElement): void {
   }, '-=0.1');
 
   tl.from(avatar, {
-    y: -30,
+    y: -vmin(3),
     duration: 0.3,
     ease: 'bounce.out',
   }, '-=0.1');
@@ -819,12 +828,14 @@ function animateEntrance_Lightning(slot: HTMLElement): void {
   gsap.set(slot, { opacity: 0, scale: 0 });
 
   // 번개 이펙트 생성
+  const lightningWidth = vmin(8);
+  const lightningHalfWidth = lightningWidth / 2;
   const lightning = document.createElement('div');
   lightning.style.cssText = `
     position: fixed;
-    left: ${slotRect.left + slotRect.width / 2 - 40}px;
+    left: ${slotRect.left + slotRect.width / 2 - lightningHalfWidth}px;
     top: 0;
-    width: 80px;
+    width: ${lightningWidth}px;
     height: ${slotRect.top + slotRect.height / 2}px;
     z-index: 99999;
     pointer-events: none;
@@ -835,7 +846,7 @@ function animateEntrance_Lightning(slot: HTMLElement): void {
       rgba(255, 255, 0, 0.3) 60%,
       transparent 100%
     );
-    filter: blur(3px);
+    filter: blur(${vmin(0.3)}px);
   `;
   document.body.appendChild(lightning);
 
@@ -955,7 +966,7 @@ export function animatePlayerHide(slot: HTMLElement): Promise<void> {
 
     // 아래로 떨어지듯 사라짐
     tl.to(slot, {
-      y: 30,
+      y: vmin(3),
       scale: 0.5,
       opacity: 0,
       duration: 0.4,

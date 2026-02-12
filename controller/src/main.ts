@@ -13,7 +13,15 @@ interface GameEvents {
   'card-dealt': { card: CardData };
   'game-start': Record<string, never>;
   'bell-descent': Record<string, never>;
-  'tap': { timestamp: number };
+  'card-play': { card: CardData; velocity: number };
+  'turn-change': { currentTurn: number };
+  'your-turn': { isYourTurn: boolean };
+  'bell-result': { success: boolean; playerIndex: number; fruitCount: Record<string, number> };
+  'card-count-update': { count: number };
+  'cards-collected': { cards: CardData[] };
+  'player-eliminated': { playerIndex: number };
+  'game-over': { winner: number };
+  'bell-hit': { timestamp: number };
   [key: string]: Record<string, unknown>;
 }
 
@@ -24,8 +32,16 @@ const FRUIT_EMOJI: Record<Fruit, string> = {
   plum: '🍇',
 };
 
+// 반응형 크기 계산 헬퍼
+const vmin = (v: number) => Math.min(window.innerWidth, window.innerHeight) * v / 100;
+const vh = (v: number) => window.innerHeight * v / 100;
+
 // 내 카드 덱
 const myCards: CardData[] = [];
+
+// 턴 상태
+let isMyTurn = false;
+let gameStarted = false;
 
 // DOM 요소
 const profileAreaEl = document.getElementById('profile-area')!;
@@ -33,7 +49,6 @@ const profileAvatarEl = document.getElementById('profile-avatar')!;
 const profileNameEl = document.getElementById('profile-name')!;
 const cardDeckEl = document.getElementById('card-deck')!;
 const cardCountEl = document.getElementById('card-count')!;
-const waitingMessageEl = document.getElementById('waiting-message')!;
 const bellAreaEl = document.getElementById('bell-area')!;
 const bellBtn = document.getElementById('bell-btn')! as HTMLButtonElement;
 
@@ -60,8 +75,6 @@ controller.on('card-dealt', (data) => {
 
   // 첫 카드를 받으면 UI 전환
   if (myCards.length === 1) {
-    // 대기 메시지 숨기기
-    waitingMessageEl.style.display = 'none';
     // 프로필을 우상단으로 이동
     profileAreaEl.classList.add('corner');
     // 카드 덱 표시
@@ -79,14 +92,74 @@ controller.on('bell-descent', () => {
 
 // 게임 시작
 controller.on('game-start', () => {
+  gameStarted = true;
   // 종 버튼 활성화
   bellBtn.style.pointerEvents = 'auto';
   bellBtn.style.opacity = '1';
 });
 
+// 내 턴 알림
+controller.on('your-turn', (data) => {
+  isMyTurn = data.isYourTurn;
+  updateTurnIndicator();
+});
+
+// 종 결과
+controller.on('bell-result', (data) => {
+  const myIndex = controller.myPlayerIndex ?? 0;
+  if (data.playerIndex === myIndex) {
+    if (data.success) {
+      showNotification('🎉 카드 획득!', 'success');
+    } else {
+      showNotification('❌ 실패! 카드 잃음', 'fail');
+    }
+  }
+});
+
+// 카드 수 업데이트
+controller.on('card-count-update', (data) => {
+  // 카드 수 동기화 (서버 기준)
+  while (myCards.length > data.count) {
+    myCards.pop();
+  }
+  renderCardDeck();
+});
+
+// 카드 수집 (성공 시)
+controller.on('cards-collected', (data) => {
+  // 수집한 카드를 덱에 추가 (뒷면으로)
+  data.cards.forEach(card => {
+    myCards.push(card);
+  });
+  renderCardDeck();
+});
+
+// 플레이어 탈락
+controller.on('player-eliminated', (data) => {
+  const myIndex = controller.myPlayerIndex ?? 0;
+  if (data.playerIndex === myIndex) {
+    showNotification('💀 탈락!', 'fail');
+    cardDeckEl.style.display = 'none';
+    bellAreaEl.style.display = 'none';
+  }
+});
+
+// 게임 종료
+controller.on('game-over', (data) => {
+  const myIndex = controller.myPlayerIndex ?? 0;
+  if (data.winner === myIndex) {
+    showNotification('🏆 승리!', 'success');
+  } else {
+    showNotification(`Player ${data.winner + 1} 승리!`, 'info');
+  }
+  gameStarted = false;
+});
+
 // 종 버튼
 bellBtn.addEventListener('pointerdown', () => {
-  controller.send('tap', { timestamp: Date.now() });
+  if (!gameStarted) return;
+
+  controller.send('bell-hit', { timestamp: Date.now() });
 
   // 버튼 누르는 효과
   gsap.to(bellBtn, {
@@ -96,6 +169,124 @@ bellBtn.addEventListener('pointerdown', () => {
     repeat: 1,
   });
 });
+
+// 스와이프 상태
+let touchStartY = 0;
+let touchStartTime = 0;
+let isSwiping = false;
+let currentSwipeCard: HTMLElement | null = null;
+
+// 카드 덱 스와이프 감지
+function setupSwipeDetection(): void {
+  cardDeckEl.addEventListener('touchstart', handleTouchStart, { passive: false });
+  cardDeckEl.addEventListener('touchmove', handleTouchMove, { passive: false });
+  cardDeckEl.addEventListener('touchend', handleTouchEnd);
+}
+
+function handleTouchStart(e: TouchEvent): void {
+  if (myCards.length === 0) return;
+
+  const touch = e.touches[0];
+  touchStartY = touch.clientY;
+  touchStartTime = Date.now();
+  isSwiping = true;
+
+  // 최상단 카드 선택
+  const cards = cardDeckEl.querySelectorAll('.controller-card');
+  currentSwipeCard = cards[cards.length - 1] as HTMLElement;
+}
+
+function handleTouchMove(e: TouchEvent): void {
+  if (!isSwiping || !currentSwipeCard) return;
+
+  const touch = e.touches[0];
+  const deltaY = touchStartY - touch.clientY;
+
+  // 위로 스와이프만 허용
+  if (deltaY > 0) {
+    e.preventDefault();
+    gsap.set(currentSwipeCard, {
+      y: -deltaY,
+      opacity: Math.max(0.3, 1 - deltaY / 200),
+    });
+  }
+}
+
+function handleTouchEnd(e: TouchEvent): void {
+  if (!isSwiping || !currentSwipeCard) return;
+
+  const touch = e.changedTouches[0];
+  const deltaY = touchStartY - touch.clientY;
+  const deltaTime = Date.now() - touchStartTime;
+
+  // 속도 계산 (px/ms)
+  const velocity = deltaY / deltaTime;
+
+  // 스와이프 임계값: 50px 이상 또는 빠른 스와이프
+  if (deltaY > 50 || velocity > 0.5) {
+    playCard(velocity);
+  } else {
+    // 원위치로 복귀
+    gsap.to(currentSwipeCard, {
+      y: 0,
+      opacity: 1,
+      duration: 0.2,
+      ease: 'power2.out',
+    });
+  }
+
+  isSwiping = false;
+  currentSwipeCard = null;
+}
+
+// 카드 플레이
+function playCard(velocity: number): void {
+  if (myCards.length === 0 || !currentSwipeCard) return;
+
+  // 턴 체크
+  if (!isMyTurn) {
+    showNotification('내 턴이 아닙니다!', 'warning');
+    // 카드 원위치
+    gsap.to(currentSwipeCard, {
+      y: 0,
+      opacity: 1,
+      duration: 0.2,
+      ease: 'power2.out',
+    });
+    return;
+  }
+
+  const playedCard = myCards.pop()!;
+  const cardEl = currentSwipeCard;
+
+  // 클램핑 없이 원본 velocity 사용 (0.01 ~ 5 범위 허용)
+  const normalizedVelocity = Math.max(velocity, 0.01);
+  const duration = 0.5 / normalizedVelocity;
+
+  console.log(`🎮 [Controller] 스와이프 속도: ${normalizedVelocity.toFixed(2)} (원본: ${velocity.toFixed(2)})`);
+
+  // 카드가 위로 날아가는 애니메이션
+  gsap.to(cardEl, {
+    y: -vh(40),
+    opacity: 0,
+    scale: 0.8,
+    duration: duration,
+    ease: 'power2.out',
+    onComplete: () => {
+      renderCardDeck();
+    },
+  });
+
+  // 스크린에 카드 플레이 이벤트 전송
+  controller.send('card-play', {
+    card: playedCard,
+    velocity: normalizedVelocity,
+  });
+
+  // 턴 종료
+  isMyTurn = false;
+  updateTurnIndicator();
+}
 
 // 카드 덱 렌더링
 function renderCardDeck(): void {
@@ -128,10 +319,13 @@ function renderCardDeck(): void {
   cardCountEl.textContent = `${myCards.length}장`;
 }
 
+// 스와이프 감지 초기화
+setupSwipeDetection();
+
 // 성스러운 종 강림 애니메이션
 function animateBellDescent(): void {
   // 타겟 위치 (화면 하단)
-  const targetY = window.innerHeight - 150;
+  const targetY = window.innerHeight - vh(20);
 
   // 컨테이너 생성
   const container = document.createElement('div');
@@ -272,5 +466,68 @@ function animateBellDescent(): void {
       duration: 0.4,
       ease: 'back.out(1.7)',
     });
+  });
+}
+
+// ============================================
+// UI 헬퍼 함수들
+// ============================================
+
+// 턴 표시 업데이트
+function updateTurnIndicator(): void {
+  const app = document.getElementById('app');
+  if (!app) return;
+
+  if (isMyTurn) {
+    app.classList.add('my-turn');
+  } else {
+    app.classList.remove('my-turn');
+  }
+}
+
+// 알림 표시
+function showNotification(text: string, type: 'success' | 'fail' | 'warning' | 'info'): void {
+  const notification = document.createElement('div');
+  notification.className = `notification ${type}`;
+
+  const colors = {
+    success: { bg: 'rgba(34, 197, 94, 0.9)', border: '#22c55e' },
+    fail: { bg: 'rgba(239, 68, 68, 0.9)', border: '#ef4444' },
+    warning: { bg: 'rgba(251, 191, 36, 0.9)', border: '#fbbf24' },
+    info: { bg: 'rgba(59, 130, 246, 0.9)', border: '#3b82f6' },
+  };
+
+  notification.textContent = text;
+  notification.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    padding: 16px 24px;
+    border-radius: 12px;
+    font-size: 18px;
+    font-weight: bold;
+    color: #fff;
+    background: ${colors[type].bg};
+    border: 2px solid ${colors[type].border};
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    z-index: 2000;
+    pointer-events: none;
+  `;
+
+  document.body.appendChild(notification);
+
+  gsap.from(notification, {
+    scale: 0,
+    duration: 0.3,
+    ease: 'back.out(1.7)',
+  });
+
+  gsap.to(notification, {
+    opacity: 0,
+    y: -30,
+    duration: 0.3,
+    delay: 1.5,
+    onComplete: () => notification.remove(),
   });
 }
