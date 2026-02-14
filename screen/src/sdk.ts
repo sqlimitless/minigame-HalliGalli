@@ -12,7 +12,7 @@ interface GameEvents {
   'card-play': { card: Card; velocity: number };
   'turn-change': { currentTurn: number };
   'your-turn': { isYourTurn: boolean };
-  'bell-result': { success: boolean; playerIndex: number; fruitCount: Record<string, number> };
+  'bell-result': { success: boolean; playerIndex: number; flowerCount: Record<string, number> };
   'card-count-update': { count: number };
   'cards-collected': { cards: Card[] };
   'player-eliminated': { playerIndex: number };
@@ -50,8 +50,8 @@ export function sendYourTurn(playerIndex: number, isYourTurn: boolean): void {
 }
 
 // 종 결과 브로드캐스트
-export function sendBellResult(success: boolean, playerIndex: number, fruitCount: Record<string, number>): void {
-  screen.broadcast('bell-result', { success, playerIndex, fruitCount });
+export function sendBellResult(success: boolean, playerIndex: number, flowerCount: Record<string, number>): void {
+  screen.broadcast('bell-result', { success, playerIndex, flowerCount });
 }
 
 // 카드 수 업데이트

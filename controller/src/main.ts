@@ -1,11 +1,11 @@
 import { createController } from '@smoregg/sdk';
 import { gsap } from 'gsap';
 
-type Fruit = 'banana' | 'strawberry' | 'lime' | 'plum';
+type Flower = 'rose' | 'carnation' | 'sunflower' | 'daisy';
 
 interface CardData {
   id: number;
-  fruit: Fruit;
+  flower: Flower;
   count: number;
 }
 
@@ -26,11 +26,11 @@ interface GameEvents {
   [key: string]: Record<string, unknown>;
 }
 
-const FRUIT_EMOJI: Record<Fruit, string> = {
-  banana: '🍌',
-  strawberry: '🍓',
-  lime: '🍋',
-  plum: '🍇',
+const FLOWER_IMAGES: Record<Flower, string> = {
+  rose: '/img/rose.png',
+  carnation: '/img/carnation.png',
+  sunflower: '/img/sunflower.png',
+  daisy: '/img/daisy.png',
 };
 
 // 반응형 크기 계산 헬퍼
@@ -343,13 +343,19 @@ function renderCardDeck(): void {
     cardEl.style.bottom = `${index * 3}px`;
     cardEl.style.zIndex = String(index);
 
-    const emoji = FRUIT_EMOJI[card.fruit];
-    const fruits = new Array(card.count).fill(emoji).join('');
+    const imageSrc = FLOWER_IMAGES[card.flower];
+
+    // Generate flowers with position classes
+    const flowerElements = [];
+    for (let i = 0; i < card.count; i++) {
+      flowerElements.push(`<img class="controller-flower-icon flower-pos-${i + 1}" src="${imageSrc}" alt="${card.flower}" />`);
+    }
+    const flowers = flowerElements.join('');
 
     cardEl.innerHTML = `
       <div class="controller-card-inner" style="transform: rotateY(180deg);">
         <div class="controller-card-front">
-          <div class="controller-card-fruits">${fruits}</div>
+          <div class="controller-card-fruits" data-count="${card.count}">${flowers}</div>
         </div>
         <div class="controller-card-back"></div>
       </div>

@@ -207,27 +207,120 @@
       }
 
       .card-back {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background-image: url('/img/BackCard.png');
+        background-size: 100% 100%;
+        background-position: center;
         transform: rotateY(180deg);
-        border: 0.2vmin solid rgba(255, 255, 255, 0.2);
-        box-shadow:
-          0 0.2vmin 0.8vmin rgba(0, 0, 0, 0.4),
-          inset 0 0.1vmin 0 rgba(255, 255, 255, 0.2);
-      }
-
-
-      .card-back::after {
-        content: '';
-        position: absolute;
-        inset: 0.6vmin;
-        border: 0.2vmin solid rgba(255, 255, 255, 0.15);
-        border-radius: 0.4vmin;
+        border: none;
+        border-radius: 0.8vmin;
+        box-shadow: 0 0.2vmin 0.8vmin rgba(0, 0, 0, 0.4);
       }
 
       .card-fruits {
-        font-size: 2vmin;
-        line-height: 1.2;
-        text-align: center;
+        position: relative;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .flower-icon {
+        position: absolute;
+        object-fit: contain;
+      }
+
+      /* Count 1: Center, large */
+      .card-fruits[data-count="1"] .flower-icon {
+        width: 6vmin;
+        height: 6vmin;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      }
+
+      /* Count 2: Top and bottom */
+      .card-fruits[data-count="2"] .flower-icon {
+        width: 4.5vmin;
+        height: 4.5vmin;
+      }
+      .card-fruits[data-count="2"] .flower-pos-1 {
+        top: 15%;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+      .card-fruits[data-count="2"] .flower-pos-2 {
+        bottom: 15%;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+
+      /* Count 3: Diagonal */
+      .card-fruits[data-count="3"] .flower-icon {
+        width: 3.8vmin;
+        height: 3.8vmin;
+      }
+      .card-fruits[data-count="3"] .flower-pos-1 {
+        top: 10%;
+        left: 12%;
+      }
+      .card-fruits[data-count="3"] .flower-pos-2 {
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      }
+      .card-fruits[data-count="3"] .flower-pos-3 {
+        bottom: 10%;
+        right: 12%;
+      }
+
+      /* Count 4: Four corners */
+      .card-fruits[data-count="4"] .flower-icon {
+        width: 3.2vmin;
+        height: 3.2vmin;
+      }
+      .card-fruits[data-count="4"] .flower-pos-1 {
+        top: 10%;
+        left: 12%;
+      }
+      .card-fruits[data-count="4"] .flower-pos-2 {
+        top: 10%;
+        right: 12%;
+      }
+      .card-fruits[data-count="4"] .flower-pos-3 {
+        bottom: 10%;
+        left: 12%;
+      }
+      .card-fruits[data-count="4"] .flower-pos-4 {
+        bottom: 10%;
+        right: 12%;
+      }
+
+      /* Count 5: Four corners + center */
+      .card-fruits[data-count="5"] .flower-icon {
+        width: 2.8vmin;
+        height: 2.8vmin;
+      }
+      .card-fruits[data-count="5"] .flower-pos-1 {
+        top: 8%;
+        left: 10%;
+      }
+      .card-fruits[data-count="5"] .flower-pos-2 {
+        top: 8%;
+        right: 10%;
+      }
+      .card-fruits[data-count="5"] .flower-pos-3 {
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+      }
+      .card-fruits[data-count="5"] .flower-pos-4 {
+        bottom: 8%;
+        left: 10%;
+      }
+      .card-fruits[data-count="5"] .flower-pos-5 {
+        bottom: 8%;
+        right: 10%;
       }
 
       .card-count {

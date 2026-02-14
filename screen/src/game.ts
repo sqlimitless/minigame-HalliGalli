@@ -134,8 +134,8 @@ function initGameLogic(): void {
       bellLocked = false;
       sendGameOver(winner);
     },
-    onBellResult: (success, playerIndex, fruitCount) => {
-      sendBellResult(success, playerIndex, fruitCount);
+    onBellResult: (success, playerIndex, flowerCount) => {
+      sendBellResult(success, playerIndex, flowerCount);
 
       // 컨트롤러에만 카드 수 업데이트 (DOM 업데이트는 애니메이션 후)
       activePlayers.forEach(pIdx => {

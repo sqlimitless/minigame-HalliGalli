@@ -2,11 +2,11 @@
 // 타입 정의
 // ============================================
 
-export type Fruit = 'banana' | 'strawberry' | 'lime' | 'plum';
+export type Flower = 'rose' | 'carnation' | 'sunflower' | 'daisy';
 
 export interface Card {
   id: number;
-  fruit: Fruit;
+  flower: Flower;
   count: number;
 }
 
@@ -24,9 +24,9 @@ export interface CardTarget {
   targetY: number;
 }
 
-export const FRUIT_EMOJI: Record<Fruit, string> = {
-  banana: '🍌',
-  strawberry: '🍓',
-  lime: '🍋',
-  plum: '🍇',
+export const FLOWER_IMAGES: Record<Flower, string> = {
+  rose: '/img/rose.png',
+  carnation: '/img/carnation.png',
+  sunflower: '/img/sunflower.png',
+  daisy: '/img/daisy.png',
 };

@@ -2,7 +2,7 @@
 // 할리갈리 게임 로직
 // ============================================
 
-import type { Card, Fruit } from './types';
+import type { Card, Flower } from './types';
 
 // 게임 상태
 interface GameState {
@@ -29,14 +29,14 @@ const state: GameState = {
 let onTurnChange: ((playerIndex: number) => void) | null = null;
 let onPlayerEliminated: ((playerIndex: number) => void) | null = null;
 let onGameOver: ((winner: number) => void) | null = null;
-let onBellResult: ((success: boolean, winnerOrLoser: number, fruitCount: Record<Fruit, number>) => void) | null = null;
+let onBellResult: ((success: boolean, winnerOrLoser: number, flowerCount: Record<Flower, number>) => void) | null = null;
 
 // 콜백 설정
 export function setCallbacks(callbacks: {
   onTurnChange?: (playerIndex: number) => void;
   onPlayerEliminated?: (playerIndex: number) => void;
   onGameOver?: (winner: number) => void;
-  onBellResult?: (success: boolean, winnerOrLoser: number, fruitCount: Record<Fruit, number>) => void;
+  onBellResult?: (success: boolean, winnerOrLoser: number, flowerCount: Record<Flower, number>) => void;
 }): void {
   if (callbacks.onTurnChange) onTurnChange = callbacks.onTurnChange;
   if (callbacks.onPlayerEliminated) onPlayerEliminated = callbacks.onPlayerEliminated;
@@ -131,46 +131,46 @@ function nextTurn(): void {
   }
 }
 
-// 바닥에 놓인 모든 카드의 과일 개수 세기
-export function countFruits(): Record<Fruit, number> {
-  const counts: Record<Fruit, number> = {
-    banana: 0,
-    strawberry: 0,
-    lime: 0,
-    plum: 0,
+// 바닥에 놓인 모든 카드의 꽃 개수 세기
+export function countFlowers(): Record<Flower, number> {
+  const counts: Record<Flower, number> = {
+    rose: 0,
+    carnation: 0,
+    sunflower: 0,
+    daisy: 0,
   };
 
   // 각 플레이어의 맨 위 카드만 세기 (보이는 카드)
   state.playedCards.forEach((cards, playerIdx) => {
     if (cards.length > 0) {
       const topCard = cards[cards.length - 1];
-      counts[topCard.fruit] += topCard.count;
+      counts[topCard.flower] += topCard.count;
     }
   });
 
-  console.log('🍎 countFruits:', JSON.stringify(counts));
+  console.log('🌸 countFlowers:', JSON.stringify(counts));
   return counts;
 }
 
-// 5개인 과일이 있는지 확인
+// 5개인 꽃이 있는지 확인
 export function hasFiveOfAny(): boolean {
-  const counts = countFruits();
+  const counts = countFlowers();
   const result = Object.values(counts).some(count => count === 5);
   console.log('🔔 hasFiveOfAny:', result, 'counts:', JSON.stringify(counts));
   return result;
 }
 
 // 종 치기
-export function ringBell(playerIndex: number): { success: boolean; fruitCount: Record<Fruit, number>; collectedCards?: Card[]; penaltyCards?: Map<number, Card> } {
-  const fruitCount = countFruits();
+export function ringBell(playerIndex: number): { success: boolean; flowerCount: Record<Flower, number>; collectedCards?: Card[]; penaltyCards?: Map<number, Card> } {
+  const flowerCount = countFlowers();
   const success = hasFiveOfAny();
   let collectedCards: Card[] | undefined;
   let penaltyCards: Map<number, Card> | undefined;
 
   // 디버깅 로그
-  const fiveOfAnyFruit = Object.entries(fruitCount)
+  const fiveOfAnyFlower = Object.entries(flowerCount)
     .filter(([_, count]) => count === 5)
-    .map(([fruit, _]) => fruit);
+    .map(([flower, _]) => flower);
 
   if (success) {
     // 성공: 바닥의 모든 카드를 가져감
@@ -186,13 +186,13 @@ export function ringBell(playerIndex: number): { success: boolean; fruitCount: R
   }
 
   if (onBellResult) {
-    onBellResult(success, playerIndex, fruitCount);
+    onBellResult(success, playerIndex, flowerCount);
   }
 
   // 게임 종료 체크
   checkGameOver();
 
-  return { success, fruitCount, collectedCards, penaltyCards };
+  return { success, flowerCount, collectedCards, penaltyCards };
 }
 
 // 바닥의 모든 카드 수집
