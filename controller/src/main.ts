@@ -22,6 +22,7 @@ interface GameEvents {
   'player-eliminated': { playerIndex: number };
   'game-over': { winner: number };
   'bell-hit': { timestamp: number };
+  'bell-race-joined': Record<string, never>;
   [key: string]: Record<string, unknown>;
 }
 
@@ -42,6 +43,7 @@ const myCards: CardData[] = [];
 // 턴 상태
 let isMyTurn = false;
 let gameStarted = false;
+let bellCooldown = false;
 
 // DOM 요소
 const profileAreaEl = document.getElementById('profile-area')!;
@@ -87,15 +89,17 @@ controller.on('card-dealt', (data) => {
 
 // 종 강림 이벤트
 controller.on('bell-descent', () => {
-  animateBellDescent();
+  animateBellDescent(() => {
+    // 애니메이션 완료 후 종 버튼 표시
+    bellBtn.style.pointerEvents = 'auto';
+    bellBtn.style.opacity = '1';
+  });
 });
 
 // 게임 시작
 controller.on('game-start', () => {
   gameStarted = true;
-  // 종 버튼 활성화
-  bellBtn.style.pointerEvents = 'auto';
-  bellBtn.style.opacity = '1';
+  // 버튼 표시는 bell-descent 완료 후에 처리됨
 });
 
 // 내 턴 알림
@@ -155,18 +159,56 @@ controller.on('game-over', (data) => {
   gameStarted = false;
 });
 
+// 종 레이스 참가 확인
+controller.on('bell-race-joined', () => {
+  const app = document.getElementById('app');
+  if (app) {
+    // 즉각적인 시각적 피드백 - 황금색 테두리 효과
+    app.style.borderColor = '#ffd700';
+    app.style.boxShadow = 'inset 0 0 5vmin rgba(255, 215, 0, 0.5)';
+
+    // 짧은 시간 후 테두리 효과 제거 (결과는 별도로 옴)
+    setTimeout(() => {
+      app.style.borderColor = '';
+      app.style.boxShadow = '';
+    }, 500);
+  }
+});
+
 // 종 버튼
 bellBtn.addEventListener('pointerdown', () => {
-  if (!gameStarted) return;
+  if (!gameStarted || bellCooldown) return;
+
+  // 진동 피드백 (모바일)
+  if (navigator.vibrate) {
+    navigator.vibrate(50);
+  }
+
+  bellCooldown = true;
+  bellBtn.style.opacity = '0.6';
 
   controller.send('bell-hit', { timestamp: Date.now() });
 
-  // 버튼 누르는 효과
+  // 버튼 누르는 효과 (GSAP로 일관되게 처리)
   gsap.to(bellBtn, {
     scale: 0.85,
     duration: 0.1,
     yoyo: true,
     repeat: 1,
+    onComplete: () => {
+      // 1초 후 쿨다운 해제
+      setTimeout(() => {
+        bellCooldown = false;
+        bellBtn.style.opacity = '1';
+        // GSAP로 원래 크기로 복원
+        gsap.to(bellBtn, {
+          scale: 1,
+          duration: 0.2,
+          ease: 'power2.out',
+          clearProps: 'transform',
+        });
+      }, 1000);
+    },
   });
 });
 
@@ -323,7 +365,7 @@ function renderCardDeck(): void {
 setupSwipeDetection();
 
 // 성스러운 종 강림 애니메이션
-function animateBellDescent(): void {
+function animateBellDescent(onComplete?: () => void): void {
   // 타겟 위치 (화면 하단)
   const targetY = window.innerHeight - vh(20);
 
@@ -461,11 +503,18 @@ function animateBellDescent(): void {
     bellAreaEl.style.display = 'block';
 
     // 버튼 등장 애니메이션
-    gsap.from(bellBtn, {
-      scale: 0,
-      duration: 0.4,
-      ease: 'back.out(1.7)',
-    });
+    gsap.fromTo(bellBtn,
+      { scale: 0 },
+      {
+        scale: 1,
+        duration: 0.4,
+        ease: 'back.out(1.7)',
+        clearProps: 'transform',
+      }
+    );
+
+    // 애니메이션 완료 후 콜백 호출
+    if (onComplete) onComplete();
   });
 }
 

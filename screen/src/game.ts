@@ -9,7 +9,8 @@ import { hideEmptySlots } from './player';
 import {
   sendCardDealt, sendBellDescent, sendGameStart,
   sendTurnChange, sendYourTurn, sendBellResult,
-  sendCardCountUpdate, sendCardsCollected, sendPenaltyCardReceived, sendPlayerEliminated, sendGameOver
+  sendCardCountUpdate, sendCardsCollected, sendPenaltyCardReceived, sendPlayerEliminated, sendGameOver,
+  sendBellRaceJoined
 } from './sdk';
 import * as gameLogic from './gameLogic';
 
@@ -25,7 +26,8 @@ interface BellHitInfo {
 }
 let bellHits: BellHitInfo[] = [];
 let bellRaceTimeout: ReturnType<typeof setTimeout> | null = null;
-const BELL_RACE_WINDOW = 300; // 300ms 내 동시 입력 처리
+const BELL_RACE_WINDOW = 3000; // 3초 내 동시 입력 처리
+let bellLocked = false;  // 종 애니메이션 중 추가 입력 방지
 
 export function getGamePhase(): GamePhase {
   return gamePhase;
@@ -129,6 +131,7 @@ function initGameLogic(): void {
     },
     onGameOver: (winner) => {
       gamePhase = 'ready';  // or 'ended'
+      bellLocked = false;
       sendGameOver(winner);
     },
     onBellResult: (success, playerIndex, fruitCount) => {
@@ -145,12 +148,17 @@ function initGameLogic(): void {
   // 게임 로직 초기화
   gameLogic.initGame(activePlayers, deck);
 
-  // 남은 카드(중앙 카드) 설정
+  // 남은 카드를 플레이어들의 playedCards에 분배
   const playerCount = activePlayers.length;
   const cardsPerPlayer = Math.floor(deck.length / playerCount);
   const totalDistributed = cardsPerPlayer * playerCount;
   const remainingCards = deck.slice(totalDistributed);
-  gameLogic.setCenterCards(remainingCards);
+
+  // 남은 카드를 순서대로 플레이어의 playedCards에 추가
+  remainingCards.forEach((card, index) => {
+    const playerIdx = activePlayers[index % activePlayers.length];
+    gameLogic.addToPlayedCards(playerIdx, card);
+  });
 }
 
 // 턴 변경 브로드캐스트
@@ -200,9 +208,13 @@ export function handleCardPlay(playerIndex: number, velocity: number): boolean {
 // 종 치기 처리 (main.ts에서 호출)
 export function handleBellHit(playerIndex: number, timestamp: number): void {
   if (gamePhase !== 'playing') return;
+  if (bellLocked) return;  // 애니메이션 중이면 무시
 
   // 종 히트 수집
   bellHits.push({ playerIndex, timestamp });
+
+  // 즉시 피드백 전송 - 플레이어가 경합에 참가했음을 알림
+  sendBellRaceJoined(playerIndex);
 
   // 첫 번째 히트면 타임아웃 시작
   if (bellHits.length === 1) {
@@ -216,13 +228,14 @@ export function handleBellHit(playerIndex: number, timestamp: number): void {
 function processBellRace(): void {
   if (bellHits.length === 0) return;
 
+  bellLocked = true;
+
   // 타임스탬프 순으로 정렬
   bellHits.sort((a, b) => a.timestamp - b.timestamp);
 
   const winner = bellHits[0];
   const competitors = bellHits.slice(1);
 
-  // 카드 스택 동기화 헬퍼 함수
   const syncCardStacks = () => {
     activePlayers.forEach(pIdx => {
       const count = gameLogic.getPlayerCardCount(pIdx);
@@ -230,40 +243,66 @@ function processBellRace(): void {
     });
   };
 
-  // 레이스 애니메이션 실행 후 결과 처리
-  animateBellRace(winner.playerIndex, competitors.map(c => c.playerIndex), () => {
-    // 게임 로직 처리
+  // 답이 맞는지 먼저 확인
+  const willSucceed = gameLogic.hasFiveOfAny();
+  console.log('🎯 processBellRace willSucceed:', willSucceed);
+
+  if (willSucceed) {
+    // 성공 시나리오
+    const hasCompetitors = competitors.length > 0;
+
+    const handleSuccess = () => {
+      const result = gameLogic.ringBell(winner.playerIndex);
+
+      // 성공: 먼저 카드 수집, 그 다음 성공 알림
+      animateCollectCards(winner.playerIndex);
+
+      // 카드 수집이 끝난 후 성공 알림 표시
+      setTimeout(() => {
+        animateBellSuccess(winner.playerIndex);
+
+        if (result.collectedCards) {
+          sendCardsCollected(winner.playerIndex, result.collectedCards);
+        }
+
+        // 성공 알림 후 스택 동기화
+        setTimeout(() => {
+          syncCardStacks();
+          bellLocked = false;
+        }, 800);
+      }, 500);
+    };
+
+    if (hasCompetitors) {
+      // 경쟁자 있으면 VS 애니메이션 표시
+      animateBellRace(winner.playerIndex, competitors.map(c => c.playerIndex), handleSuccess);
+    } else {
+      // 경쟁자 없으면 바로 성공 처리
+      handleSuccess();
+    }
+  } else {
+    // 실패 시나리오: VS 애니메이션 없이 바로 실패 처리
     const result = gameLogic.ringBell(winner.playerIndex);
 
-    // 결과에 따른 애니메이션 처리
-    if (result.success) {
-      // 성공 애니메이션
-      animateBellSuccess(winner.playerIndex);
-      // 카드 수집 애니메이션
-      animateCollectCards(winner.playerIndex);
-      // 수집한 카드를 컨트롤러에 전송
-      if (result.collectedCards) {
-        sendCardsCollected(winner.playerIndex, result.collectedCards);
-      }
-      setTimeout(syncCardStacks, 600);
-    } else {
-      // 실패 애니메이션
-      animateBellFail(winner.playerIndex);
-      // 패널티 카드를 받은 플레이어들의 컨트롤러에 카드 전송
-      if (result.penaltyCards) {
-        result.penaltyCards.forEach((card, playerIdx) => {
-          sendPenaltyCardReceived(playerIdx, card);
-        });
-      }
-      // 페널티 카드 분배 애니메이션 완료 후 카드 스택 동기화
+    // 실패: 먼저 실패 알림, 그 다음 패널티 카드 분배
+    animateBellFail(winner.playerIndex);
+
+    if (result.penaltyCards) {
+      result.penaltyCards.forEach((card, playerIdx) => {
+        sendPenaltyCardReceived(playerIdx, card);
+      });
+    }
+
+    // 실패 알림 후 패널티 카드 분배
+    setTimeout(() => {
       const otherPlayers = activePlayers.filter(p => p !== winner.playerIndex);
       animatePenaltyCards(winner.playerIndex, otherPlayers, () => {
         syncCardStacks();
+        bellLocked = false;
       });
-    }
-  });
+    }, 800);
+  }
 
-  // 상태 초기화
   bellHits = [];
   bellRaceTimeout = null;
 }

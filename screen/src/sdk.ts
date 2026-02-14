@@ -18,6 +18,7 @@ interface GameEvents {
   'player-eliminated': { playerIndex: number };
   'game-over': { winner: number };
   'bell-hit': { timestamp: number };
+  'bell-race-joined': Record<string, never>;
   [key: string]: Record<string, unknown>;
 }
 
@@ -76,4 +77,9 @@ export function sendPlayerEliminated(playerIndex: number): void {
 // 게임 종료 브로드캐스트
 export function sendGameOver(winner: number): void {
   screen.broadcast('game-over', { winner });
+}
+
+// 종 레이스 참가 알림 (개별 플레이어)
+export function sendBellRaceJoined(playerIndex: number): void {
+  screen.sendToController(playerIndex, 'bell-race-joined', {});
 }

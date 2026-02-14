@@ -572,8 +572,8 @@ export function animateCardPlay(
     const dirY = slotCenterY - centerY;
     const dist = Math.sqrt(dirX * dirX + dirY * dirY);
 
-    offsetX = (dirX / dist) * vmin(8);
-    offsetY = (dirY / dist) * vmin(8);
+    offsetX = (dirX / dist) * vmin(15);
+    offsetY = (dirY / dist) * vmin(15);
   }
 
   // 현재 카드 위치
@@ -683,17 +683,18 @@ export function animateBellRace(
   const bellCenterX = bellRect.left + bellRect.width / 2;
   const bellCenterY = bellRect.top + bellRect.height / 2;
 
-  // 승자 슬롯
-  const winnerSlot = document.getElementById(`player-${winnerIndex}`);
-  if (!winnerSlot) {
+  // ALL participants array - treat winner as just another participant until reveal
+  const allParticipantIndices = [winnerIndex, ...competitorIndices];
+  const allSlots = allParticipantIndices
+    .map(idx => ({ index: idx, el: document.getElementById(`player-${idx}`) }))
+    .filter((item): item is { index: number; el: HTMLElement } => item.el !== null);
+
+  if (allSlots.length === 0) {
     onComplete();
     return;
   }
 
-  // 경쟁자들
-  const competitors = competitorIndices
-    .map(idx => document.getElementById(`player-${idx}`))
-    .filter((el): el is HTMLElement => el !== null);
+  const totalPlayers = allSlots.length;
 
   const tl = gsap.timeline({
     onComplete: () => {
@@ -701,90 +702,256 @@ export function animateBellRace(
     }
   });
 
-  // 승자 아바타 복제 (원본은 그대로 두고)
-  const winnerAvatar = winnerSlot.querySelector('.player-avatar') as HTMLElement;
-  const winnerGhost = createRaceGhost(winnerSlot, winnerAvatar);
-  document.body.appendChild(winnerGhost);
-
-  // 경쟁자 고스트들 생성
-  const competitorGhosts = competitors.map(slot => {
-    const avatar = slot.querySelector('.player-avatar') as HTMLElement;
-    const ghost = createRaceGhost(slot, avatar);
+  // Create ghosts for ALL participants (no distinction yet)
+  const allGhosts = allSlots.map(({ el }) => {
+    const avatar = el.querySelector('.player-avatar') as HTMLElement;
+    const ghost = createRaceGhost(el, avatar);
     document.body.appendChild(ghost);
     return ghost;
   });
 
-  // 모든 고스트의 시작 위치 설정
-  const winnerSlotRect = winnerSlot.getBoundingClientRect();
-  gsap.set(winnerGhost, {
-    left: winnerSlotRect.left + winnerSlotRect.width / 2,
-    top: winnerSlotRect.top + winnerSlotRect.height / 2,
-  });
-
-  competitorGhosts.forEach((ghost, i) => {
-    const slot = competitors[i];
-    const rect = slot.getBoundingClientRect();
-    gsap.set(ghost, {
+  // Set starting positions for all ghosts
+  allSlots.forEach(({ el }, i) => {
+    const rect = el.getBoundingClientRect();
+    gsap.set(allGhosts[i], {
       left: rect.left + rect.width / 2,
       top: rect.top + rect.height / 2,
     });
   });
 
-  // 1단계: 준비 이펙트 (슬롯 하이라이트)
-  tl.to(winnerSlot, {
-    boxShadow: '0 0 20px rgba(255, 215, 0, 0.8)',
-    duration: 0.1,
-  }, 0);
-
-  competitors.forEach((slot, i) => {
-    tl.to(slot, {
-      boxShadow: '0 0 15px rgba(255, 100, 100, 0.6)',
+  // 1단계: 준비 이펙트 (ALL slots highlighted equally - neutral color)
+  allSlots.forEach(({ el }) => {
+    tl.to(el, {
+      boxShadow: '0 0 18px rgba(100, 200, 255, 0.7)',
       duration: 0.1,
     }, 0);
   });
 
-  // 2단계: 레이스! 모두 종을 향해 돌진
-  if (competitorGhosts.length > 0) {
-    // 경쟁이 있을 때 - 긴장감 연출
-    tl.addLabel('race', '+=0.1');
+  // 2단계: VS 대결 연출 (Fighting Game Style) - ALL participants shown equally
+  if (totalPlayers > 1) {
+    // Phase 1: Dramatic Entry with Flash
+    tl.addLabel('flash', '+=0.2');
 
-    // 승자가 조금 더 빨리 도착
-    tl.to(winnerGhost, {
+    // White screen flash
+    const flashOverlay = document.createElement('div');
+    flashOverlay.style.cssText = `
+      position: fixed;
+      inset: 0;
+      background: white;
+      z-index: 2100;
+      pointer-events: none;
+    `;
+    document.body.appendChild(flashOverlay);
+
+    tl.to(flashOverlay, {
+      opacity: 0,
+      duration: 0.5,
+      ease: 'power2.out',
+      onComplete: () => flashOverlay.remove(),
+    }, 'flash');
+
+    // VS 대결 컨테이너 생성 (ALL participants shown equally in split screen)
+    const vsContainer = createEqualVSDisplay(allSlots, totalPlayers, winnerIndex);
+    document.body.appendChild(vsContainer);
+
+    // Phase 2: Face-off Setup - ALL characters enter their sections
+    tl.addLabel('slideIn', 'flash+=0.1');
+
+    const allChars = vsContainer.querySelectorAll('.vs-participant') as NodeListOf<HTMLElement>;
+    const vsText = vsContainer.querySelector('.vs-text') as HTMLElement;
+    const sectionBgs = vsContainer.querySelectorAll('.vs-section-bg') as NodeListOf<HTMLElement>;
+
+    // Section backgrounds fade in (or conic background for 3 players)
+    if (totalPlayers === 3) {
+      const conicBg = vsContainer.querySelector('.vs-conic-background') as HTMLElement;
+      if (conicBg) {
+        tl.to(conicBg, {
+          opacity: 1,
+          duration: 0.3,
+        }, 'slideIn');
+      }
+    } else {
+      sectionBgs.forEach((bg) => {
+        tl.to(bg, {
+          opacity: 1,
+          duration: 0.3,
+        }, 'slideIn');
+      });
+    }
+
+    // ALL characters slide into their equal sections
+    allChars.forEach((char, i) => {
+      const section = Math.floor(i);
+      const slideDirection = getSectionSlideDirection(section, totalPlayers);
+
+      tl.fromTo(char, {
+        x: slideDirection.x * vmin(50),
+        y: slideDirection.y * vmin(30),
+        opacity: 0,
+      }, {
+        x: 0,
+        y: 0,
+        opacity: 1,
+        duration: 0.4,
+        ease: 'power3.out',
+      }, `slideIn+=${i * 0.1}`);
+    });
+
+    // VS text appears with scale
+    tl.fromTo(vsText, {
+      scale: 0,
+      rotation: -10,
+      opacity: 0,
+    }, {
+      scale: 1,
+      rotation: 0,
+      opacity: 1,
+      duration: 0.3,
+      ease: 'back.out(1.7)',
+    }, 'slideIn+=0.3');
+
+    // Phase 3: 투닥투닥 Fighting - ALL push toward center equally
+    tl.addLabel('fight', '+=0.3');
+
+    // 5 rounds of fighting with increasing intensity - NO ONE dominates yet
+    for (let i = 0; i < 5; i++) {
+      const pushLabel = `push${i}`;
+      const intensity = 1 + i * 0.3;
+      tl.addLabel(pushLabel, i === 0 ? 'fight' : `+=${0.35 - i * 0.02}`);
+
+      // ALL participants push toward center equally
+      allChars.forEach((char, idx) => {
+        const pushDir = getCharacterPushDirection(idx, totalPlayers);
+        tl.to(char, {
+          x: pushDir.x * vmin(4) * intensity,
+          y: pushDir.y * vmin(2) * intensity,
+          rotation: pushDir.rotation * 5 * intensity,
+          duration: 0.08,
+          ease: 'power2.out',
+        }, pushLabel);
+      });
+
+      // Screen shake during collision
+      tl.to(vsContainer, {
+        x: `random(-${vmin(0.8) * intensity}, ${vmin(0.8) * intensity})`,
+        y: `random(-${vmin(0.5) * intensity}, ${vmin(0.5) * intensity})`,
+        duration: 0.05,
+        repeat: 2,
+        yoyo: true,
+      }, `${pushLabel}+=0.08`);
+
+      // Impact spark at collision point
+      tl.call(() => {
+        createFightingSpark(vsContainer, intensity);
+      }, [], `${pushLabel}+=0.08`);
+
+      // Pull back to starting positions
+      tl.to(allChars, {
+        x: 0,
+        y: 0,
+        rotation: 0,
+        duration: 0.12,
+        ease: 'power1.inOut',
+      }, `${pushLabel}+=0.18`);
+
+      // Reset container position
+      tl.to(vsContainer, {
+        x: 0,
+        y: 0,
+        duration: 0.05,
+      }, `${pushLabel}+=0.18`);
+    }
+
+    // Phase 4: Winner Reveal with Burst - THIS IS WHERE WE REVEAL!
+    tl.addLabel('reveal', '+=0.2');
+
+    // Brief freeze
+    tl.to({}, { duration: 0.15 }, 'reveal');
+
+    // Winner BURSTS with gold glow (first participant is the winner)
+    const winnerChar = allChars[0];
+    const loserChars = Array.from(allChars).slice(1);
+
+    tl.to(winnerChar, {
+      scale: 1.5,
+      filter: 'drop-shadow(0 0 30px rgba(255, 215, 0, 1)) brightness(1.5) saturate(1.3)',
+      duration: 0.5,
+      ease: 'back.out(2)',
+    }, 'reveal+=0.15');
+
+    // Starburst effect behind winner
+    tl.call(() => {
+      createStarburstEffect(winnerChar);
+    }, [], 'reveal+=0.15');
+
+    // All losers darken and shrink
+    loserChars.forEach((char, idx) => {
+      const pushDir = getCharacterPushDirection(idx + 1, totalPlayers);
+      tl.to(char, {
+        x: pushDir.x * vmin(15),
+        y: pushDir.y * vmin(10),
+        scale: 0.6,
+        filter: 'grayscale(1) brightness(0.5)',
+        opacity: 0.5,
+        duration: 0.5,
+        ease: 'power2.in',
+      }, 'reveal+=0.15');
+    });
+
+    // VS text fades out
+    tl.to(vsText, {
+      opacity: 0,
+      scale: 0.8,
+      duration: 0.3,
+    }, 'reveal+=0.25');
+
+    // Phase 5: Cleanup
+    tl.addLabel('cleanup', '+=0.6');
+
+    tl.to(vsContainer, {
+      opacity: 0,
+      duration: 0.3,
+      onComplete: () => vsContainer.remove(),
+    }, 'cleanup');
+
+    // 종으로 돌진 (빠르게) - winner first, then losers
+    tl.addLabel('race', '-=0.2');
+
+    // Winner ghost
+    tl.to(allGhosts[0], {
       left: bellCenterX,
       top: bellCenterY,
       scale: 1.5,
-      duration: 0.25,
-      ease: 'power3.in',
+      duration: 0.2,
+      ease: 'power4.in',
     }, 'race');
 
-    // 경쟁자들은 약간 늦게
-    competitorGhosts.forEach((ghost, i) => {
+    // Loser ghosts
+    allGhosts.slice(1).forEach((ghost, i) => {
       tl.to(ghost, {
-        left: bellCenterX + (Math.random() - 0.5) * vmin(4),
-        top: bellCenterY + (Math.random() - 0.5) * vmin(4),
-        scale: 1.3,
-        duration: 0.28 + i * 0.02,
-        ease: 'power3.in',
+        left: bellCenterX + (Math.random() - 0.5) * vmin(3),
+        top: bellCenterY + (Math.random() - 0.5) * vmin(3),
+        scale: 1.4,
+        duration: 0.25 + i * 0.02,
+        ease: 'power4.in',
       }, 'race');
     });
 
-    // 3단계: 충돌! 승자가 경쟁자들 찌그러뜨림
+    // 3단계: 충돌!
     tl.addLabel('impact', '-=0.05');
 
-    // 종 흔들림
     tl.to(bell, {
       scale: 1.4,
       duration: 0.08,
     }, 'impact');
 
-    // 충돌 이펙트
     tl.call(() => {
       createImpactEffect(bellCenterX, bellCenterY);
     }, [], 'impact');
 
-    // 경쟁자들 찌그러지며 튕겨나감
-    competitorGhosts.forEach((ghost, i) => {
-      const angle = (i + 1) * (360 / (competitorGhosts.length + 1)) * (Math.PI / 180);
+    // 경쟁자들 튕겨나감
+    allGhosts.slice(1).forEach((ghost, i) => {
+      const angle = (i + 1) * (360 / allGhosts.length) * (Math.PI / 180);
       const distance = vmin(15) + Math.random() * vmin(5);
 
       tl.to(ghost, {
@@ -800,20 +967,42 @@ export function animateBellRace(
       }, 'impact');
     });
 
-    // 승자 승리 포즈
-    tl.to(winnerGhost, {
-      scale: 2,
-      duration: 0.15,
+    tl.to(allGhosts[0], {
+      scale: 2.5,
+      duration: 0.2,
     }, 'impact');
 
-    tl.to(winnerGhost, {
+    // 승자 주변 빛 효과
+    tl.call(() => {
+      const glow = document.createElement('div');
+      glow.style.cssText = `
+        position: fixed;
+        left: ${bellCenterX}px;
+        top: ${bellCenterY}px;
+        width: ${vmin(30)}px;
+        height: ${vmin(30)}px;
+        background: radial-gradient(circle, rgba(255,215,0,0.6) 0%, transparent 70%);
+        transform: translate(-50%, -50%);
+        z-index: 1998;
+        pointer-events: none;
+      `;
+      document.body.appendChild(glow);
+      gsap.to(glow, {
+        scale: 2,
+        opacity: 0,
+        duration: 0.5,
+        onComplete: () => glow.remove(),
+      });
+    });
+
+    tl.to(allGhosts[0], {
       scale: 1.5,
-      duration: 0.1,
+      duration: 0.15,
     });
 
   } else {
     // 경쟁 없이 혼자 - 빠르게 도착
-    tl.to(winnerGhost, {
+    tl.to(allGhosts[0], {
       left: bellCenterX,
       top: bellCenterY,
       scale: 1.8,
@@ -844,27 +1033,588 @@ export function animateBellRace(
   });
 
   // 슬롯 원래대로 (인라인 스타일 완전 제거)
-  tl.to([winnerSlot, ...competitors], {
+  const allSlotEls = allSlots.map(s => s.el);
+  tl.to(allSlotEls, {
     boxShadow: 'none',
     duration: 0.2,
   }, '-=0.2');
 
   // 애니메이션 종료 시 모든 슬롯의 GSAP 속성 제거
   tl.call(() => {
-    gsap.set([winnerSlot, ...competitors], { clearProps: 'all' });
+    gsap.set(allSlotEls, { clearProps: 'all' });
   });
 
   // 승자 고스트 제거
-  tl.to(winnerGhost, {
+  tl.to(allGhosts[0], {
     opacity: 0,
     scale: 0,
     duration: 0.2,
-    onComplete: () => winnerGhost.remove(),
+    onComplete: () => allGhosts[0].remove(),
   }, '-=0.1');
 
   // 승자 슬롯 하이라이트
   tl.call(() => {
     showWinnerHighlight(winnerIndex);
+  });
+}
+
+// Equal VS Display - ALL participants shown in split screen layout
+function createEqualVSDisplay(
+  allSlots: Array<{ index: number; el: HTMLElement }>,
+  totalPlayers: number,
+  winnerIndex: number
+): HTMLElement {
+  // Main VS container
+  const container = document.createElement('div');
+  container.className = 'vs-display-container equal-split-style';
+  container.style.cssText = `
+    position: fixed;
+    inset: 0;
+    z-index: 2050;
+    pointer-events: none;
+    display: ${getSplitLayoutDisplay(totalPlayers)};
+  `;
+
+  if (totalPlayers === 3) {
+    // For 3 players: use conic-gradient background instead of individual section divs
+    const conicBg = document.createElement('div');
+    conicBg.className = 'vs-conic-background';
+    conicBg.style.cssText = `
+      position: absolute;
+      inset: 0;
+      background: conic-gradient(
+        from 300deg,
+        #ff4444 0deg 120deg,
+        #ffdd44 120deg 240deg,
+        #44dd44 240deg 360deg
+      );
+      opacity: 0;
+    `;
+    container.appendChild(conicBg);
+
+    // Create characters positioned absolutely at their section centers
+    allSlots.forEach((slotInfo, index) => {
+      const slot = slotInfo.el;
+      const avatar = slot.querySelector('.player-avatar') as HTMLElement;
+      const name = slot.querySelector('.player-name') as HTMLElement;
+      const avatarStyle = avatar?.style.backgroundImage || '';
+      const text = avatar?.textContent || '👤';
+      const nickname = name?.textContent || 'Player';
+
+      const char = createEqualSplitCharacter(
+        avatarStyle,
+        text,
+        nickname,
+        index,
+        totalPlayers,
+        false // Don't reveal winner status yet
+      );
+      container.appendChild(char);
+    });
+  } else {
+    // For 2 or 4 players: use individual colored section backgrounds
+    const colors = ['#ff4444', '#ffdd44', '#44dd44', '#4444ff'];
+    allSlots.forEach((slotInfo, index) => {
+      const sectionBg = document.createElement('div');
+      sectionBg.className = `vs-section-bg section-${index}`;
+      sectionBg.style.cssText = `
+        position: relative;
+        background: ${colors[index]};
+        opacity: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        ${getSectionStyle(index, totalPlayers)}
+      `;
+
+      // Create character inside this section
+      const slot = slotInfo.el;
+      const avatar = slot.querySelector('.player-avatar') as HTMLElement;
+      const name = slot.querySelector('.player-name') as HTMLElement;
+      const avatarStyle = avatar?.style.backgroundImage || '';
+      const text = avatar?.textContent || '👤';
+      const nickname = name?.textContent || 'Player';
+
+      const char = createEqualSplitCharacter(
+        avatarStyle,
+        text,
+        nickname,
+        index,
+        totalPlayers,
+        false // Don't reveal winner status yet
+      );
+      sectionBg.appendChild(char);
+      container.appendChild(sectionBg);
+    });
+  }
+
+  // VS Text in center with neutral glow
+  const vsText = document.createElement('div');
+  vsText.className = 'vs-text';
+  vsText.textContent = totalPlayers === 2 ? 'VS' : 'BATTLE';
+  vsText.style.cssText = `
+    position: absolute;
+    ${getCenterTextPosition(totalPlayers)}
+    font-size: ${vmin(totalPlayers === 2 ? 12 : 10)}px;
+    font-weight: 900;
+    color: #fff;
+    text-shadow:
+      0 0 ${vmin(2)}px rgba(100, 200, 255, 1),
+      0 0 ${vmin(4)}px rgba(100, 200, 255, 0.8),
+      0 0 ${vmin(6)}px rgba(100, 200, 255, 0.6),
+      ${vmin(0.4)} ${vmin(0.4)} ${vmin(0.8)} rgba(0, 0, 0, 0.8);
+    letter-spacing: ${vmin(1)}px;
+    z-index: 100;
+    filter: drop-shadow(0 0 ${vmin(3)}px rgba(255, 255, 255, 0.5));
+    font-family: 'Arial Black', sans-serif;
+    -webkit-text-stroke: ${vmin(0.3)}px #000;
+    transform: translate(-50%, -50%);
+  `;
+  container.appendChild(vsText);
+
+  return container;
+}
+
+// Helper: Get split screen layout display property
+function getSplitLayoutDisplay(totalPlayers: number): string {
+  if (totalPlayers === 2) {
+    return 'grid; grid-template-columns: 1fr 1fr';
+  } else if (totalPlayers === 3) {
+    return 'block'; // Use absolute positioning for 3 players with conic-gradient
+  } else if (totalPlayers === 4) {
+    return 'grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr';
+  }
+  return 'flex; align-items: center; justify-content: center';
+}
+
+// Helper: Get split background (player colors)
+function getSplitBackground(totalPlayers: number): string {
+  const colors = ['#ff4444', '#ffdd44', '#44dd44', '#4444ff']; // red, yellow, green, blue
+
+  if (totalPlayers === 2) {
+    return `linear-gradient(90deg, ${colors[0]} 0%, ${colors[0]} 50%, ${colors[1]} 50%, ${colors[1]} 100%)`;
+  } else if (totalPlayers === 3) {
+    return `linear-gradient(135deg, ${colors[0]} 0%, ${colors[0]} 33%, ${colors[1]} 33%, ${colors[1]} 66%, ${colors[2]} 66%, ${colors[2]} 100%)`;
+  } else if (totalPlayers === 4) {
+    return `linear-gradient(135deg, ${colors[0]} 25%, ${colors[1]} 25%, ${colors[1]} 50%, ${colors[2]} 50%, ${colors[2]} 75%, ${colors[3]} 75%)`;
+  }
+  return '#2d3748';
+}
+
+// Helper: Get center text position based on layout
+function getCenterTextPosition(totalPlayers: number): string {
+  return 'left: 50%; top: 50%;';
+}
+
+// Create character in equal split section
+function createEqualSplitCharacter(
+  avatarStyle: string,
+  avatarText: string,
+  nickname: string,
+  sectionIndex: number,
+  totalPlayers: number,
+  isWinner: boolean
+): HTMLElement {
+  const char = document.createElement('div');
+  char.className = `vs-participant section-${sectionIndex}`;
+
+  const avatarSize = vmin(18);
+  const neutralBorder = 'rgba(100, 200, 255, 0.8)';
+
+  const sectionStyle = getSectionStyle(sectionIndex, totalPlayers);
+
+  char.style.cssText = `
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: ${vmin(1.5)}px;
+    ${sectionStyle}
+    filter: drop-shadow(0 ${vmin(1)}px ${vmin(2)}px rgba(0, 0, 0, 0.7));
+    z-index: 2051;
+  `;
+
+  // Character avatar
+  const avatar = document.createElement('div');
+  avatar.className = 'vs-avatar';
+  avatar.style.cssText = `
+    width: ${avatarSize}px;
+    height: ${avatarSize}px;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    background-color: rgba(0, 0, 0, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: ${vmin(9)}px;
+    border: ${vmin(0.6)}px solid ${neutralBorder};
+    box-shadow:
+      0 0 ${vmin(2)}px ${neutralBorder},
+      inset 0 0 ${vmin(1)}px rgba(255, 255, 255, 0.3);
+    ${avatarStyle ? `background-image: ${avatarStyle};` : ''}
+  `;
+  avatar.textContent = avatarStyle ? '' : avatarText;
+  char.appendChild(avatar);
+
+  // Nickname bar
+  const nameBar = document.createElement('div');
+  nameBar.className = 'vs-nickname';
+  nameBar.textContent = nickname;
+  nameBar.style.cssText = `
+    font-size: ${vmin(3)}px;
+    font-weight: bold;
+    color: #fff;
+    text-shadow:
+      ${vmin(0.2)} ${vmin(0.2)} ${vmin(0.4)} rgba(0, 0, 0, 1),
+      0 0 ${vmin(1)}px rgba(100, 200, 255, 0.8);
+    white-space: nowrap;
+    background: linear-gradient(90deg,
+      transparent 0%,
+      rgba(74, 85, 104, 0.8) 20%,
+      rgba(74, 85, 104, 0.8) 80%,
+      transparent 100%
+    );
+    padding: ${vmin(0.5)}px ${vmin(2)}px;
+    border-radius: ${vmin(0.5)}px;
+    font-family: 'Arial Black', sans-serif;
+    letter-spacing: ${vmin(0.1)}px;
+    border: ${vmin(0.2)}px solid rgba(255, 255, 255, 0.3);
+  `;
+  char.appendChild(nameBar);
+
+  return char;
+}
+
+// Helper: Get section-specific positioning
+function getSectionStyle(sectionIndex: number, totalPlayers: number): string {
+  if (totalPlayers === 2) {
+    // Left/Right split
+    return '';
+  } else if (totalPlayers === 3) {
+    // 3 equal pizza slices - position characters at section centers
+    const positions = [
+      'position: absolute; left: 50%; top: 25%; transform: translate(-50%, -50%);', // Section 0: top center
+      'position: absolute; left: 75%; top: 70%; transform: translate(-50%, -50%);', // Section 1: bottom-right
+      'position: absolute; left: 25%; top: 70%; transform: translate(-50%, -50%);', // Section 2: bottom-left
+    ];
+    return positions[sectionIndex] || '';
+  } else if (totalPlayers === 4) {
+    // 2x2 grid
+    return '';
+  }
+  return '';
+}
+
+// Helper: Get slide direction for each section
+function getSectionSlideDirection(sectionIndex: number, totalPlayers: number): { x: number; y: number } {
+  if (totalPlayers === 2) {
+    return sectionIndex === 0 ? { x: -1, y: 0 } : { x: 1, y: 0 };
+  } else if (totalPlayers === 3) {
+    const dirs = [
+      { x: 0, y: -1 },  // Section 0: top (comes from above)
+      { x: 1, y: 1 },   // Section 1: bottom-right
+      { x: -1, y: 1 }   // Section 2: bottom-left
+    ];
+    return dirs[sectionIndex] || { x: 0, y: 0 };
+  } else if (totalPlayers === 4) {
+    const dirs = [
+      { x: -1, y: -1 }, // Top-left
+      { x: 1, y: -1 },  // Top-right
+      { x: -1, y: 1 },  // Bottom-left
+      { x: 1, y: 1 }    // Bottom-right
+    ];
+    return dirs[sectionIndex] || { x: 0, y: 0 };
+  }
+  return { x: 0, y: 0 };
+}
+
+// Helper: Get push direction for fighting animation
+function getCharacterPushDirection(charIndex: number, totalPlayers: number): { x: number; y: number; rotation: number } {
+  if (totalPlayers === 2) {
+    return charIndex === 0
+      ? { x: 1, y: 0, rotation: 5 }
+      : { x: -1, y: 0, rotation: -5 };
+  } else if (totalPlayers === 3) {
+    const dirs = [
+      { x: 0, y: 1, rotation: 0 },   // Section 0: top pushes down toward center
+      { x: -1, y: -1, rotation: -5 }, // Section 1: bottom-right pushes toward center
+      { x: 1, y: -1, rotation: 5 }   // Section 2: bottom-left pushes toward center
+    ];
+    return dirs[charIndex] || { x: 0, y: 0, rotation: 0 };
+  } else if (totalPlayers === 4) {
+    const dirs = [
+      { x: 1, y: 1, rotation: 5 },    // Top-left
+      { x: -1, y: 1, rotation: -5 },  // Top-right
+      { x: 1, y: -1, rotation: 5 },   // Bottom-left
+      { x: -1, y: -1, rotation: -5 }  // Bottom-right
+    ];
+    return dirs[charIndex] || { x: 0, y: 0, rotation: 0 };
+  }
+  return { x: 0, y: 0, rotation: 0 };
+}
+
+// Deprecated: Old fighting character function (replaced by createEqualSplitCharacter)
+// Kept for reference but not used in the new equal-display animation
+
+// Fighting game collision spark (💥 style)
+function createFightingSpark(container: HTMLElement, intensity: number): void {
+  const rect = container.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+
+  // Main impact emoji 💥
+  const impact = document.createElement('div');
+  impact.textContent = '💥';
+  impact.style.cssText = `
+    position: fixed;
+    left: ${centerX}px;
+    top: ${centerY}px;
+    font-size: ${vmin(4 + intensity * 0.5)}px;
+    z-index: 2101;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    filter: drop-shadow(0 0 ${vmin(1)}px rgba(255, 255, 255, 1));
+  `;
+  document.body.appendChild(impact);
+
+  gsap.fromTo(impact, {
+    scale: 0.5,
+    opacity: 1,
+  }, {
+    scale: 1.5,
+    opacity: 0,
+    rotation: (Math.random() - 0.5) * 30,
+    duration: 0.3,
+    ease: 'power2.out',
+    onComplete: () => impact.remove(),
+  });
+
+  // Speed lines/impact lines radiating outward
+  for (let i = 0; i < 8; i++) {
+    const line = document.createElement('div');
+    const angle = (i / 8) * Math.PI * 2;
+    line.style.cssText = `
+      position: fixed;
+      left: ${centerX}px;
+      top: ${centerY}px;
+      width: ${vmin(0.4)}px;
+      height: ${vmin(3)}px;
+      background: linear-gradient(to bottom,
+        rgba(255, 255, 255, 1),
+        rgba(255, 215, 0, 0.8),
+        transparent
+      );
+      transform-origin: top center;
+      transform: translate(-50%, 0) rotate(${angle * 180 / Math.PI}deg);
+      z-index: 2100;
+      pointer-events: none;
+    `;
+    document.body.appendChild(line);
+
+    gsap.to(line, {
+      height: vmin(6 + intensity),
+      opacity: 0,
+      duration: 0.2,
+      ease: 'power2.out',
+      onComplete: () => line.remove(),
+    });
+  }
+
+  // Small spark particles
+  for (let i = 0; i < 5; i++) {
+    const spark = document.createElement('div');
+    spark.textContent = '✦';
+    spark.style.cssText = `
+      position: fixed;
+      left: ${centerX}px;
+      top: ${centerY}px;
+      font-size: ${vmin(1.5 + Math.random())}px;
+      color: ${Math.random() > 0.5 ? '#ffd700' : '#fff'};
+      z-index: 2100;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+    `;
+    document.body.appendChild(spark);
+
+    const angle = Math.random() * Math.PI * 2;
+    const distance = vmin(3 + Math.random() * 3);
+
+    gsap.to(spark, {
+      x: Math.cos(angle) * distance,
+      y: Math.sin(angle) * distance,
+      opacity: 0,
+      rotation: Math.random() * 360,
+      duration: 0.3 + Math.random() * 0.2,
+      ease: 'power2.out',
+      onComplete: () => spark.remove(),
+    });
+  }
+}
+
+// Starburst effect behind winner
+function createStarburstEffect(winnerElement: HTMLElement): void {
+  const rect = winnerElement.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+
+  // Starburst rays container
+  const burstContainer = document.createElement('div');
+  burstContainer.style.cssText = `
+    position: fixed;
+    left: ${centerX}px;
+    top: ${centerY}px;
+    width: ${vmin(40)}px;
+    height: ${vmin(40)}px;
+    transform: translate(-50%, -50%);
+    z-index: 2048;
+    pointer-events: none;
+  `;
+  document.body.appendChild(burstContainer);
+
+  // Create rotating starburst rays
+  for (let i = 0; i < 16; i++) {
+    const ray = document.createElement('div');
+    ray.style.cssText = `
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: ${vmin(1)}px;
+      height: ${vmin(20)}px;
+      background: linear-gradient(to bottom,
+        rgba(255, 215, 0, 1),
+        rgba(255, 215, 0, 0.5),
+        transparent
+      );
+      transform-origin: center top;
+      transform: translate(-50%, 0) rotate(${i * 22.5}deg);
+    `;
+    burstContainer.appendChild(ray);
+  }
+
+  // Animate starburst
+  gsap.fromTo(burstContainer, {
+    scale: 0,
+    rotation: 0,
+    opacity: 0,
+  }, {
+    scale: 1,
+    rotation: 45,
+    opacity: 1,
+    duration: 0.4,
+    ease: 'power2.out',
+  });
+
+  gsap.to(burstContainer, {
+    rotation: 90,
+    opacity: 0,
+    scale: 1.2,
+    duration: 0.6,
+    delay: 0.4,
+    ease: 'power2.in',
+    onComplete: () => burstContainer.remove(),
+  });
+
+  // Golden glow pulse
+  const glow = document.createElement('div');
+  glow.style.cssText = `
+    position: fixed;
+    left: ${centerX}px;
+    top: ${centerY}px;
+    width: ${vmin(25)}px;
+    height: ${vmin(25)}px;
+    background: radial-gradient(circle,
+      rgba(255, 215, 0, 0.6) 0%,
+      rgba(255, 215, 0, 0.3) 40%,
+      transparent 70%
+    );
+    transform: translate(-50%, -50%);
+    z-index: 2047;
+    pointer-events: none;
+    border-radius: 50%;
+  `;
+  document.body.appendChild(glow);
+
+  gsap.fromTo(glow, {
+    scale: 0.5,
+    opacity: 0,
+  }, {
+    scale: 2,
+    opacity: 1,
+    duration: 0.3,
+    ease: 'power2.out',
+  });
+
+  gsap.to(glow, {
+    scale: 2.5,
+    opacity: 0,
+    duration: 0.5,
+    delay: 0.3,
+    ease: 'power2.in',
+    onComplete: () => glow.remove(),
+  });
+}
+
+// 축하 이펙트
+function createCelebrationEffect(winnerElement: HTMLElement): void {
+  const rect = winnerElement.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+
+  // 반짝이는 별들
+  for (let i = 0; i < 12; i++) {
+    const star = document.createElement('div');
+    star.textContent = ['✦', '★', '✨'][Math.floor(Math.random() * 3)];
+    star.style.cssText = `
+      position: fixed;
+      left: ${centerX}px;
+      top: ${centerY}px;
+      font-size: ${vmin(1.5 + Math.random() * 1.5)}px;
+      color: #ffd700;
+      z-index: 2002;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+    `;
+    document.body.appendChild(star);
+
+    const angle = (i / 12) * Math.PI * 2;
+    const distance = vmin(8) + Math.random() * vmin(4);
+
+    gsap.to(star, {
+      left: centerX + Math.cos(angle) * distance,
+      top: centerY + Math.sin(angle) * distance,
+      opacity: 0,
+      rotation: Math.random() * 720 - 360,
+      scale: 0.5 + Math.random() * 0.5,
+      duration: 0.6 + Math.random() * 0.4,
+      ease: 'power2.out',
+      onComplete: () => star.remove(),
+    });
+  }
+
+  // 골든 링
+  const ring = document.createElement('div');
+  ring.style.cssText = `
+    position: fixed;
+    left: ${centerX}px;
+    top: ${centerY}px;
+    width: ${vmin(12)}px;
+    height: ${vmin(12)}px;
+    border: ${vmin(0.5)}px solid rgba(255, 215, 0, 0.8);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2001;
+    pointer-events: none;
+  `;
+  document.body.appendChild(ring);
+
+  gsap.to(ring, {
+    width: vmin(20),
+    height: vmin(20),
+    opacity: 0,
+    duration: 0.5,
+    ease: 'power2.out',
+    onComplete: () => ring.remove(),
   });
 }
 

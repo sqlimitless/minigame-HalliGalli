@@ -15,9 +15,19 @@
         -webkit-user-select: none;
       }
       #app {
-        position: fixed; inset: 0;
-        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
         padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+        border: 0.8vmin solid #666;
+      }
+
+      #app.my-turn {
+        border: 0.8vmin solid #00ff00;
+        box-shadow: inset 0 0 3vmin rgba(0, 255, 0, 0.3);
       }
 
       /* 프로필 영역 (중앙 -> 우상단 이동) */
@@ -35,6 +45,7 @@
         right: 2vw;
         flex-direction: row;
         gap: 1vmin;
+        z-index: 20;
       }
 
       #profile-avatar {
@@ -71,47 +82,40 @@
         font-size: clamp(12px, 2vmin, 18px);
       }
 
-      /* 기본 테두리 (내 턴 아닐 때) */
-      #app {
-        border: 0.8vmin solid #666;
-      }
-
-      /* 내 턴 테두리 */
-      #app.my-turn {
-        border: 0.8vmin solid #00ff00;
-        box-shadow: inset 0 0 3vmin rgba(0, 255, 0, 0.3);
-      }
-
       /* 카드 덱 영역 */
       #card-deck {
         display: none;
         position: absolute;
-        top: 50%;
+        top: 3%;
         left: 50%;
-        transform: translate(-50%, -50%);
-        width: 30vmin;
-        height: 42vmin;
+        transform: translateX(-50%);
+        width: 80%;
+        max-width: min(80vw, calc((68vh - 6vh) / 1.4));
+        height: calc(68vh - 6vh);
+        aspect-ratio: 5 / 7;
       }
 
       #card-count {
         display: none;
         position: absolute;
-        top: 8vh;
-        left: 50%;
-        transform: translateX(-50%);
-        font-size: clamp(24px, 5vmin, 40px);
+        top: 0.5%;
+        left: 10%;
+        font-size: clamp(14px, 3.5vw, 28px);
         font-weight: bold;
         color: #ffd700;
         text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        z-index: 10;
       }
 
       .controller-card {
         position: absolute;
-        width: 28vmin;
-        height: 39.2vmin;
+        width: 100%;
+        height: 100%;
         left: 50%;
-        transform: translateX(-50%);
+        top: 50%;
+        transform: translate(-50%, -50%);
         perspective: 1000px;
+        aspect-ratio: 5 / 7;
       }
 
       .controller-card-inner {
@@ -157,7 +161,7 @@
       }
 
       .controller-card-fruits {
-        font-size: clamp(28px, 7vmin, 56px);
+        font-size: clamp(24px, 8vw, 80px);
         line-height: 1.2;
         text-align: center;
       }
@@ -166,30 +170,31 @@
       #bell-area {
         display: none;
         position: absolute;
-        bottom: 6vh;
-        left: 50%;
-        transform: translateX(-50%);
+        top: 68%;
+        left: 10%;
+        right: 10%;
+        bottom: env(safe-area-inset-bottom, 5%);
       }
 
       #bell-btn {
-        width: 18vmin;
-        height: 18vmin;
-        border-radius: 50%;
-        background: linear-gradient(135deg, #ffd700 0%, #ffb700 100%);
-        border: 0.6vmin solid rgba(255, 255, 255, 0.4);
-        font-size: 9vmin;
+        position: absolute;
+        inset: 0;
+        border-radius: 3vmin;
+        background: linear-gradient(180deg, #ffd700 0%, #e6ac00 100%);
+        border: none;
+        font-size: clamp(50px, 15vw, 150px);
         cursor: pointer;
-        box-shadow: 0 4px 20px rgba(255, 215, 0, 0.5);
+        box-shadow: 0 4px 30px rgba(255, 215, 0, 0.6);
         -webkit-tap-highlight-color: transparent;
-        transition: transform 0.1s, box-shadow 0.1s;
+        transition: transform 0.1s, background 0.1s;
         display: flex;
         align-items: center;
         justify-content: center;
       }
 
       #bell-btn:active {
-        transform: scale(0.9);
-        box-shadow: 0 2px 10px rgba(255, 215, 0, 0.3);
+        transform: scale(0.98);
+        background: linear-gradient(180deg, #e6ac00 0%, #cc9900 100%);
       }
 
       /* 성스러운 종 강림 애니메이션 */

@@ -79,9 +79,16 @@ export function getCurrentTurn(): number {
   return state.currentTurn;
 }
 
-// 중앙 카드 설정
+// 중앙 카드 설정 (deprecated - leftover cards now go to playedCards)
 export function setCenterCards(cards: Card[]): void {
   state.centerCards = cards;
+}
+
+// 초기 플레이된 카드 설정 (leftover cards)
+export function addToPlayedCards(playerIndex: number, card: Card): void {
+  const played = state.playedCards.get(playerIndex) || [];
+  played.push(card);
+  state.playedCards.set(playerIndex, played);
 }
 
 // 플레이어가 카드를 낼 수 있는지 확인
@@ -141,17 +148,16 @@ export function countFruits(): Record<Fruit, number> {
     }
   });
 
-  // 중앙 카드도 세기 (모두 보이는 상태)
-  state.centerCards.forEach((card, idx) => {
-    counts[card.fruit] += card.count;
-  });
+  console.log('🍎 countFruits:', JSON.stringify(counts));
   return counts;
 }
 
 // 5개인 과일이 있는지 확인
 export function hasFiveOfAny(): boolean {
   const counts = countFruits();
-  return Object.values(counts).some(count => count === 5);
+  const result = Object.values(counts).some(count => count === 5);
+  console.log('🔔 hasFiveOfAny:', result, 'counts:', JSON.stringify(counts));
+  return result;
 }
 
 // 종 치기
@@ -200,10 +206,6 @@ function collectAllCards(winnerIndex: number): Card[] {
     state.playedCards.set(playerIdx, []);
   });
 
-  // 중앙 카드도 수집
-  collectedCards.push(...state.centerCards);
-  state.centerCards = [];
-
   // 섞어서 덱 맨 아래에 추가
   shuffleArray(collectedCards);
   state.playerDecks.set(winnerIndex, [...collectedCards, ...winnerDeck]);
@@ -244,7 +246,8 @@ function eliminatePlayer(playerIndex: number): void {
 
     // 탈락한 플레이어가 현재 턴이었다면 다음 턴으로
     if (state.currentTurn === playerIndex && state.activePlayers.length > 0) {
-      state.currentTurn = state.activePlayers[idx % state.activePlayers.length];
+      const newIdx = Math.min(idx, state.activePlayers.length - 1);
+      state.currentTurn = state.activePlayers[newIdx];
     }
 
     if (onPlayerEliminated) {
