@@ -2,15 +2,32 @@
 // 게임 상태 및 렌더링
 // ============================================
 
+// BGM
+let bgmStarted = false;
+function startBGM(): void {
+  if (bgmStarted) return;
+  bgmStarted = true;
+  const bgm = new Audio('/sounds/bgm.mp3');
+  bgm.volume = 0.2;
+  bgm.loop = true;
+  bgm.play().catch(() => {});
+}
+
+function playGameStartSound(): void {
+  const sound = new Audio('/sounds/gameStart.mp3');
+  sound.volume = 1.0;
+  sound.play().catch(() => {});
+}
+
 import type { Card, GamePhase } from './types';
 import { createDeck, shuffleDeck, renderCard } from './card';
-import { animateCardsEntrance, animateGameStart, animateCardDistribution, animateBellDescent, animateFlipRemainingCards, animateCardPlay, animateBellRace, animateCollectCards, animatePenaltyCards, updatePlayerCardStack, animateBellSuccess, animateBellFail } from './animation';
+import { animateCardsEntrance, animateGameStart, animateCardDistribution, animateBellDescent, animateFlipRemainingCards, animateCardPlay, animateBellRace, animateCollectCards, animatePenaltyCards, updatePlayerCardStack, animateBellSuccess, animateBellFail, animateVictory } from './animation';
 import { hideEmptySlots } from './player';
 import {
   sendCardDealt, sendBellDescent, sendGameStart,
   sendTurnChange, sendYourTurn, sendBellResult,
   sendCardCountUpdate, sendCardsCollected, sendPenaltyCardReceived, sendPlayerEliminated, sendGameOver,
-  sendBellRaceJoined
+  sendBellRaceJoined, sendGameReset
 } from './sdk';
 import * as gameLogic from './gameLogic';
 
@@ -26,7 +43,7 @@ interface BellHitInfo {
 }
 let bellHits: BellHitInfo[] = [];
 let bellRaceTimeout: ReturnType<typeof setTimeout> | null = null;
-const BELL_RACE_WINDOW = 3000; // 3초 내 동시 입력 처리
+const BELL_RACE_WINDOW = 500; // 0.5초 내 동시 입력 처리
 let bellLocked = false;  // 종 애니메이션 중 추가 입력 방지
 
 export function getGamePhase(): GamePhase {
@@ -73,6 +90,8 @@ export function startGame(): void {
   if (gamePhase !== 'ready') {
     return;
   }
+  startBGM();
+  playGameStartSound();
   gamePhase = 'shuffling';
 
   const startBtn = document.getElementById('startBtn')!;
@@ -130,9 +149,15 @@ function initGameLogic(): void {
       sendPlayerEliminated(playerIndex);
     },
     onGameOver: (winner) => {
-      gamePhase = 'ready';  // or 'ended'
+      gamePhase = 'ready';
       bellLocked = false;
       sendGameOver(winner);
+
+      // Show victory screen with animation
+      animateVictory(winner, () => {
+        // Reset game state without reloading
+        resetGameState();
+      });
     },
     onBellResult: (success, playerIndex, flowerCount) => {
       sendBellResult(success, playerIndex, flowerCount);
@@ -205,10 +230,20 @@ export function handleCardPlay(playerIndex: number, velocity: number): boolean {
   return true;
 }
 
+// 종 사운드 재생
+function playBellSound(): void {
+  const sound = new Audio('/sounds/bellSound.mp3');
+  sound.volume = 1.0;
+  sound.play().catch(() => {});
+}
+
 // 종 치기 처리 (main.ts에서 호출)
 export function handleBellHit(playerIndex: number, timestamp: number): void {
   if (gamePhase !== 'playing') return;
   if (bellLocked) return;  // 애니메이션 중이면 무시
+
+  // 종 사운드 재생
+  playBellSound();
 
   // 종 히트 수집
   bellHits.push({ playerIndex, timestamp });
@@ -222,6 +257,56 @@ export function handleBellHit(playerIndex: number, timestamp: number): void {
       processBellRace();
     }, BELL_RACE_WINDOW);
   }
+}
+
+// 게임 상태 리셋 (페이지 리로드 없이)
+function resetGameState(): void {
+  // Reset game phase
+  gamePhase = 'ready';
+  bellLocked = false;
+  bellHits = [];
+  if (bellRaceTimeout) {
+    clearTimeout(bellRaceTimeout);
+    bellRaceTimeout = null;
+  }
+
+  // Clear all played and remaining cards
+  const allCards = document.querySelectorAll('.card');
+  allCards.forEach(card => card.remove());
+
+  // Remove bell container if exists
+  const bellContainer = document.querySelector('.bell-container');
+  if (bellContainer) {
+    bellContainer.remove();
+  }
+
+  // Clear card container
+  const cardContainer = document.getElementById('card-container');
+  if (cardContainer) {
+    cardContainer.innerHTML = '';
+  }
+
+  // Reset player slots to waiting state (keep them active but clear card stacks)
+  activePlayers.forEach(playerIdx => {
+    const slot = document.getElementById(`player-${playerIdx}`);
+    if (slot) {
+      slot.classList.remove('turn-active', 'bell-winner');
+      const cardStack = slot.querySelector('.card-stack');
+      if (cardStack) {
+        cardStack.innerHTML = '';
+      }
+    }
+  });
+
+  // Recreate deck and game container
+  deck = shuffleDeck(createDeck());
+  const app = document.getElementById('app');
+  if (app) {
+    renderGame(app, startGame);
+  }
+
+  // Broadcast game reset to controllers
+  sendGameReset();
 }
 
 // 종 레이스 처리
@@ -293,9 +378,9 @@ function processBellRace(): void {
       });
     }
 
-    // 실패 알림 후 패널티 카드 분배
+    // 실패 알림 후 패널티 카드 분배 (활성 플레이어만)
     setTimeout(() => {
-      const otherPlayers = activePlayers.filter(p => p !== winner.playerIndex);
+      const otherPlayers = gameLogic.getActivePlayers().filter(p => p !== winner.playerIndex);
       animatePenaltyCards(winner.playerIndex, otherPlayers, () => {
         syncCardStacks();
         bellLocked = false;

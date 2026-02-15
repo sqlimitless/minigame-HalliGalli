@@ -33,6 +33,19 @@ const FLOWER_IMAGES: Record<Flower, string> = {
   daisy: '/img/daisy.png',
 };
 
+// Sound utilities
+function playCardDropSound(): void {
+  const sound = new Audio('/sounds/carddrop.mp3');
+  sound.volume = 1.0;
+  sound.play().catch(() => {});
+}
+
+function playBellSound(): void {
+  const sound = new Audio('/sounds/bellSound.mp3');
+  sound.volume = 1.0;
+  sound.play().catch(() => {});
+}
+
 // 반응형 크기 계산 헬퍼
 const vmin = (v: number) => Math.min(window.innerWidth, window.innerHeight) * v / 100;
 const vh = (v: number) => window.innerHeight * v / 100;
@@ -179,6 +192,9 @@ controller.on('bell-race-joined', () => {
 bellBtn.addEventListener('pointerdown', () => {
   if (!gameStarted || bellCooldown) return;
 
+  // 종 사운드 재생
+  playBellSound();
+
   // 진동 피드백 (모바일)
   if (navigator.vibrate) {
     navigator.vibrate(50);
@@ -297,6 +313,9 @@ function playCard(velocity: number): void {
     });
     return;
   }
+
+  // Play card drop sound immediately
+  playCardDropSound();
 
   const playedCard = myCards.pop()!;
   const cardEl = currentSwipeCard;

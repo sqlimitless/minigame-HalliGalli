@@ -19,6 +19,7 @@ interface GameEvents {
   'game-over': { winner: number };
   'bell-hit': { timestamp: number };
   'bell-race-joined': Record<string, never>;
+  'game-reset': Record<string, never>;
   [key: string]: Record<string, unknown>;
 }
 
@@ -82,4 +83,9 @@ export function sendGameOver(winner: number): void {
 // 종 레이스 참가 알림 (개별 플레이어)
 export function sendBellRaceJoined(playerIndex: number): void {
   screen.sendToController(playerIndex, 'bell-race-joined', {});
+}
+
+// 게임 리셋 브로드캐스트
+export function sendGameReset(): void {
+  screen.broadcast('game-reset', {});
 }

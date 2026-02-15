@@ -140,15 +140,21 @@ export function countFlowers(): Record<Flower, number> {
     daisy: 0,
   };
 
+  console.log('🌸 countFlowers debug:');
+  console.log('  - activePlayers:', state.activePlayers);
+  console.log('  - playedCards keys:', Array.from(state.playedCards.keys()));
+
   // 각 플레이어의 맨 위 카드만 세기 (보이는 카드)
   state.playedCards.forEach((cards, playerIdx) => {
+    console.log(`  - Player ${playerIdx}: ${cards.length} cards`);
     if (cards.length > 0) {
       const topCard = cards[cards.length - 1];
+      console.log(`    Top card: ${topCard.flower} x${topCard.count}`);
       counts[topCard.flower] += topCard.count;
     }
   });
 
-  console.log('🌸 countFlowers:', JSON.stringify(counts));
+  console.log('🌸 countFlowers result:', JSON.stringify(counts));
   return counts;
 }
 
@@ -248,6 +254,11 @@ function eliminatePlayer(playerIndex: number): void {
     if (state.currentTurn === playerIndex && state.activePlayers.length > 0) {
       const newIdx = Math.min(idx, state.activePlayers.length - 1);
       state.currentTurn = state.activePlayers[newIdx];
+
+      // 턴 변경 콜백 호출 (UI/컨트롤러에 알림)
+      if (onTurnChange) {
+        onTurnChange(state.currentTurn);
+      }
     }
 
     if (onPlayerEliminated) {

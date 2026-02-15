@@ -11,6 +11,36 @@ const vmin = (v: number): number => Math.min(window.innerWidth, window.innerHeig
 // 전역 z-index 카운터 (새로 던진 카드가 항상 맨 위에 오도록)
 let playedCardZIndex = 500;
 
+// Sound utilities
+let shuffleSound: HTMLAudioElement | null = null;
+let shuffleSoundInterval: ReturnType<typeof setInterval> | null = null;
+
+function startShuffleSound(): void {
+  shuffleSound = new Audio('/sounds/flipcard.mp3');
+  shuffleSound.volume = 1.0;
+
+  // Play immediately
+  shuffleSound.play().catch(() => {});
+
+  // Repeat every 300ms for shuffle effect
+  shuffleSoundInterval = setInterval(() => {
+    const sound = new Audio('/sounds/flipcard.mp3');
+    sound.volume = 1.0;
+    sound.play().catch(() => {});
+  }, 300);
+}
+
+function stopShuffleSound(): void {
+  if (shuffleSoundInterval) {
+    clearInterval(shuffleSoundInterval);
+    shuffleSoundInterval = null;
+  }
+  if (shuffleSound) {
+    shuffleSound.pause();
+    shuffleSound = null;
+  }
+}
+
 // 카드 등장 애니메이션
 export function animateCardsEntrance(): void {
   gsap.from('.card', {
@@ -144,6 +174,9 @@ export function animateCardDistribution(
   const cards = Array.from(document.querySelectorAll('.card')) as HTMLElement[];
   const totalCards = cards.length;
 
+  // Start shuffle sound
+  startShuffleSound();
+
   // 플레이어가 없으면 종료
   if (playerCount === 0) {
     onComplete();
@@ -203,6 +236,7 @@ export function animateCardDistribution(
 
   const tl = gsap.timeline({
     onComplete: () => {
+      stopShuffleSound();
       onComplete();
     }
   });
@@ -364,6 +398,11 @@ export function animateFlipRemainingCards(onComplete: () => void): void {
 // ============================================
 
 export function animateBellDescent(onComplete: () => void): void {
+  // Play holy spell cast sound for bell descent
+  const holySound = new Audio('/sounds/holy-spell-cast.mp3');
+  holySound.volume = 1.0;
+  holySound.play().catch(() => {});
+
   // 덱 영역 중앙 위치 계산
   const deckArea = document.querySelector('.deck-area');
   const deckRect = deckArea?.getBoundingClientRect();
@@ -2005,4 +2044,95 @@ export function updatePlayerCardStack(playerIndex: number, newCount: number): vo
       });
     });
   }
+}
+
+// ============================================
+// Victory celebration animation
+// ============================================
+
+export function animateVictory(winnerIndex: number, onPlayAgain: () => void): void {
+  const winnerSlot = document.getElementById(`player-${winnerIndex}`);
+  if (!winnerSlot) return;
+
+  // Create overlay
+  const overlay = document.createElement('div');
+  overlay.className = 'victory-overlay';
+  overlay.innerHTML = `
+    <div class="confetti-container"></div>
+    <div class="victory-profile-container"></div>
+    <button class="play-again-btn">다시하기</button>
+  `;
+  document.body.appendChild(overlay);
+
+  // Clone winner profile and move to center
+  const profileClone = winnerSlot.cloneNode(true) as HTMLElement;
+  profileClone.className = 'victory-profile';
+  profileClone.removeAttribute('id');
+  const profileContainer = overlay.querySelector('.victory-profile-container')!;
+  profileContainer.appendChild(profileClone);
+
+  // Start confetti
+  const confettiContainer = overlay.querySelector('.confetti-container')!;
+  createConfetti(confettiContainer as HTMLElement);
+
+  // Animate profile to center
+  gsap.fromTo(profileClone,
+    { scale: 1, y: 50, opacity: 0 },
+    { scale: 1.5, y: 0, opacity: 1, duration: 0.8, ease: 'back.out(1.7)' }
+  );
+
+  // Show play again button
+  const playAgainBtn = overlay.querySelector('.play-again-btn') as HTMLButtonElement;
+  gsap.fromTo(playAgainBtn,
+    { y: 50, opacity: 0 },
+    { y: 0, opacity: 1, duration: 0.5, delay: 1, ease: 'power2.out' }
+  );
+
+  playAgainBtn.addEventListener('click', () => {
+    gsap.to(overlay, {
+      opacity: 0,
+      duration: 0.3,
+      onComplete: () => {
+        overlay.remove();
+        onPlayAgain();
+      }
+    });
+  });
+}
+
+function createConfetti(container: HTMLElement): void {
+  const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00'];
+
+  // Initial confetti burst
+  for (let i = 0; i < 150; i++) {
+    spawnConfettiPiece(container, colors);
+  }
+
+  // Keep spawning confetti until container is removed
+  const spawnInterval = setInterval(() => {
+    if (!container.isConnected) {
+      clearInterval(spawnInterval);
+      return;
+    }
+    // Spawn a few more pieces periodically
+    for (let i = 0; i < 5; i++) {
+      spawnConfettiPiece(container, colors);
+    }
+  }, 200);
+}
+
+function spawnConfettiPiece(container: HTMLElement, colors: string[]): void {
+  const confetti = document.createElement('div');
+  confetti.className = 'confetti-piece';
+  confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+  confetti.style.left = `${Math.random() * 100}%`;
+  confetti.style.animationDuration = `${3 + Math.random() * 2}s`;
+  container.appendChild(confetti);
+
+  // Remove after animation completes to prevent DOM bloat
+  setTimeout(() => {
+    if (confetti.parentNode) {
+      confetti.remove();
+    }
+  }, 6000);
 }
