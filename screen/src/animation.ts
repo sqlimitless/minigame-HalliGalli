@@ -375,7 +375,7 @@ export function animateBellDescent(onComplete: () => void): void {
   container.className = 'bell-container';
   container.innerHTML = `
     <div class="divine-light"></div>
-    <div class="bell">🔔</div>
+    <div class="bell"><img src="/img/Bell.png" alt="Bell" /></div>
     <div class="bell-glow"></div>
   `;
   document.body.appendChild(container);
