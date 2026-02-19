@@ -23,6 +23,8 @@ interface GameEvents {
   'game-over': { winner: number };
   'bell-hit': { timestamp: number };
   'bell-race-joined': Record<string, never>;
+  'turn-countdown': { remaining: number };
+  'turn-timeout': { playerIndex: number };
   [key: string]: Record<string, unknown>;
 }
 
@@ -188,6 +190,41 @@ controller.on('bell-race-joined', () => {
   }
 });
 
+// 턴 카운트다운
+controller.on('turn-countdown', (data) => {
+  const countdownEl = document.getElementById('countdown-display');
+  if (!countdownEl) return;
+
+  if (data.remaining < 0) {
+    // 숨기기
+    countdownEl.classList.remove('visible', 'urgent', 'heartbeat');
+    return;
+  }
+
+  countdownEl.textContent = String(data.remaining);
+  countdownEl.classList.add('visible');
+
+  if (data.remaining <= 5) {
+    countdownEl.classList.add('urgent', 'heartbeat');
+  } else {
+    countdownEl.classList.remove('urgent', 'heartbeat');
+  }
+});
+
+// 턴 타임아웃
+controller.on('turn-timeout', (data) => {
+  const myIndex = controller.myPlayerIndex ?? 0;
+  if (data.playerIndex === myIndex) {
+    showNotification('⏰ 시간 초과! 카드 분배 벌칙!', 'fail');
+  }
+
+  // 카운트다운 숨기기
+  const countdownEl = document.getElementById('countdown-display');
+  if (countdownEl) {
+    countdownEl.classList.remove('visible', 'urgent', 'heartbeat');
+  }
+});
+
 // 종 버튼
 bellBtn.addEventListener('pointerdown', () => {
   if (!gameStarted || bellCooldown) return;
@@ -343,10 +380,6 @@ function playCard(velocity: number): void {
     card: playedCard,
     velocity: normalizedVelocity,
   });
-
-  // 턴 종료
-  isMyTurn = false;
-  updateTurnIndicator();
 }
 
 // 카드 덱 렌더링

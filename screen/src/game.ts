@@ -27,7 +27,7 @@ import {
   sendCardDealt, sendBellDescent, sendGameStart,
   sendTurnChange, sendYourTurn, sendBellResult,
   sendCardCountUpdate, sendCardsCollected, sendPenaltyCardReceived, sendPlayerEliminated, sendGameOver,
-  sendBellRaceJoined, sendGameReset
+  sendBellRaceJoined, sendGameReset, sendTurnCountdown, sendTurnTimeout
 } from './sdk';
 import * as gameLogic from './gameLogic';
 
@@ -45,6 +45,145 @@ let bellHits: BellHitInfo[] = [];
 let bellRaceTimeout: ReturnType<typeof setTimeout> | null = null;
 const BELL_RACE_WINDOW = 500; // 0.5초 내 동시 입력 처리
 let bellLocked = false;  // 종 애니메이션 중 추가 입력 방지
+
+// 턴 타이머
+const TURN_TIME_LIMIT = 30; // seconds
+let turnTimer: ReturnType<typeof setInterval> | null = null;
+let turnTimeRemaining = TURN_TIME_LIMIT;
+
+// 턴 타이머 시작
+function startTurnTimer(): void {
+  stopTurnTimer();
+  turnTimeRemaining = TURN_TIME_LIMIT;
+
+  // 스타일 추가 (한 번만)
+  if (!document.getElementById('countdown-styles')) {
+    const style = document.createElement('style');
+    style.id = 'countdown-styles';
+    style.textContent = `
+      @keyframes heartbeat {
+        0%, 100% { transform: translate(-50%, -50%) scale(1); }
+        15% { transform: translate(-50%, -50%) scale(1.3); }
+        30% { transform: translate(-50%, -50%) scale(1); }
+        45% { transform: translate(-50%, -50%) scale(1.15); }
+        60% { transform: translate(-50%, -50%) scale(1); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
+  turnTimer = setInterval(() => {
+    turnTimeRemaining--;
+
+    // 10초 이하일 때 카운트다운 브로드캐스트
+    if (turnTimeRemaining <= 10 && turnTimeRemaining >= 0) {
+      sendTurnCountdown(gameLogic.getCurrentTurn(), turnTimeRemaining);
+      updateCountdownDisplay(turnTimeRemaining);
+    }
+
+    // 타임아웃
+    if (turnTimeRemaining <= 0) {
+      handleTurnTimeout();
+    }
+  }, 1000);
+}
+
+// 턴 타이머 정지
+function stopTurnTimer(): void {
+  if (turnTimer) {
+    clearInterval(turnTimer);
+    turnTimer = null;
+  }
+  turnTimeRemaining = TURN_TIME_LIMIT;
+  hideCountdownDisplay();
+}
+
+// 카운트다운 표시 업데이트
+function updateCountdownDisplay(remaining: number): void {
+  let countdownEl = document.getElementById('screen-countdown');
+  if (!countdownEl) {
+    countdownEl = document.createElement('div');
+    countdownEl.id = 'screen-countdown';
+    countdownEl.style.cssText = `
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 15vmin;
+      font-weight: 900;
+      color: #fff;
+      text-shadow: 0 0 3vmin rgba(255, 100, 100, 0.8), 0 0 6vmin rgba(255, 50, 50, 0.5);
+      z-index: 10000;
+      pointer-events: none;
+    `;
+    document.body.appendChild(countdownEl);
+  }
+
+  countdownEl.textContent = String(remaining);
+  countdownEl.style.display = 'block';
+
+  // 5초 이하면 긴급 스타일 + 심박동 애니메이션
+  if (remaining <= 5) {
+    countdownEl.style.color = '#ff3333';
+    countdownEl.style.textShadow = '0 0 4vmin rgba(255, 0, 0, 1), 0 0 10vmin rgba(255, 0, 0, 0.7)';
+    countdownEl.style.animation = 'heartbeat 0.8s ease-in-out infinite';
+  } else {
+    countdownEl.style.color = '#fff';
+    countdownEl.style.textShadow = '0 0 3vmin rgba(255, 100, 100, 0.8), 0 0 6vmin rgba(255, 50, 50, 0.5)';
+    countdownEl.style.animation = 'none';
+  }
+}
+
+// 카운트다운 숨기기
+function hideCountdownDisplay(): void {
+  const countdownEl = document.getElementById('screen-countdown');
+  if (countdownEl) {
+    countdownEl.style.display = 'none';
+  }
+  const currentPlayer = gameLogic.getCurrentTurn();
+  if (currentPlayer >= 0) {
+    sendTurnCountdown(currentPlayer, -1); // -1 means hide on controllers
+  }
+}
+
+// 턴 타임아웃 처리
+function handleTurnTimeout(): void {
+  stopTurnTimer();
+
+  const currentPlayer = gameLogic.getCurrentTurn();
+  sendTurnTimeout(currentPlayer);
+
+  // 종 실패와 동일한 벌칙 적용
+  const result = gameLogic.ringBell(currentPlayer);
+
+  // 카드 스택 동기화 함수
+  const syncCardStacks = () => {
+    const players = gameLogic.getActivePlayers();
+    players.forEach(pIdx => {
+      const count = gameLogic.getPlayerCardCount(pIdx);
+      updatePlayerCardStack(pIdx, count);
+    });
+  };
+
+  // 다음 턴으로 진행하는 함수
+  const advanceToNextTurn = () => {
+    syncCardStacks();
+    // 명시적으로 다음 턴으로 진행
+    const activePlayers = gameLogic.getActivePlayers();
+    const currentIdx = activePlayers.indexOf(currentPlayer);
+    const nextIdx = (currentIdx + 1) % activePlayers.length;
+    const nextPlayer = activePlayers[nextIdx];
+    broadcastTurnChange(nextPlayer);
+  };
+
+  // 벌칙 카드 애니메이션 후 다음 턴으로
+  if (result.penaltyCards && result.penaltyCards.size > 0) {
+    const otherPlayers = gameLogic.getActivePlayers().filter(p => p !== currentPlayer);
+    animatePenaltyCards(currentPlayer, otherPlayers, advanceToNextTurn);
+  } else {
+    advanceToNextTurn();
+  }
+}
 
 export function getGamePhase(): GamePhase {
   return gamePhase;
@@ -151,6 +290,7 @@ function initGameLogic(): void {
     onGameOver: (winner) => {
       gamePhase = 'ready';
       bellLocked = false;
+      stopTurnTimer(); // 게임 종료 시 타이머 정지
       sendGameOver(winner);
 
       // Show victory screen with animation
@@ -197,6 +337,9 @@ function broadcastTurnChange(currentTurn: number): void {
 
   // 화면에 현재 턴 표시
   highlightCurrentTurn(currentTurn);
+
+  // 턴 타이머 시작
+  startTurnTimer();
 }
 
 // 현재 턴 플레이어 하이라이트
@@ -217,6 +360,9 @@ function highlightCurrentTurn(playerIndex: number): void {
 export function handleCardPlay(playerIndex: number, velocity: number): boolean {
   // 턴 체크
   if (!gameLogic.canPlayCard(playerIndex)) {
+    // Re-broadcast current turn to re-sync all controllers
+    const currentTurn = gameLogic.getCurrentTurn();
+    broadcastTurnChange(currentTurn);
     return false;
   }
 
@@ -269,6 +415,9 @@ function resetGameState(): void {
     clearTimeout(bellRaceTimeout);
     bellRaceTimeout = null;
   }
+
+  // 턴 타이머 정지
+  stopTurnTimer();
 
   // Clear all played and remaining cards
   const allCards = document.querySelectorAll('.card');

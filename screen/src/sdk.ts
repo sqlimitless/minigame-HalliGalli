@@ -20,6 +20,8 @@ interface GameEvents {
   'bell-hit': { timestamp: number };
   'bell-race-joined': Record<string, never>;
   'game-reset': Record<string, never>;
+  'turn-countdown': { remaining: number };
+  'turn-timeout': { playerIndex: number };
   [key: string]: Record<string, unknown>;
 }
 
@@ -88,4 +90,14 @@ export function sendBellRaceJoined(playerIndex: number): void {
 // 게임 리셋 브로드캐스트
 export function sendGameReset(): void {
   screen.broadcast('game-reset', {});
+}
+
+// 턴 카운트다운 전송 (현재 턴 플레이어에게만)
+export function sendTurnCountdown(playerIndex: number, remaining: number): void {
+  screen.sendToController(playerIndex, 'turn-countdown', { remaining });
+}
+
+// 턴 타임아웃 브로드캐스트
+export function sendTurnTimeout(playerIndex: number): void {
+  screen.broadcast('turn-timeout', { playerIndex });
 }
