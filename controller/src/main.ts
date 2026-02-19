@@ -27,21 +27,21 @@ interface GameEvents {
 }
 
 const FLOWER_IMAGES: Record<Flower, string> = {
-  rose: '/img/rose.png',
-  carnation: '/img/carnation.png',
-  sunflower: '/img/sunflower.png',
-  daisy: '/img/daisy.png',
+  rose: './img/rose.png',
+  carnation: './img/carnation.png',
+  sunflower: './img/sunflower.png',
+  daisy: './img/daisy.png',
 };
 
 // Sound utilities
 function playCardDropSound(): void {
-  const sound = new Audio('/sounds/carddrop.mp3');
+  const sound = new Audio('./sounds/carddrop.mp3');
   sound.volume = 1.0;
   sound.play().catch(() => {});
 }
 
 function playBellSound(): void {
-  const sound = new Audio('/sounds/bellSound.mp3');
+  const sound = new Audio('./sounds/bellSound.mp3');
   sound.volume = 1.0;
   sound.play().catch(() => {});
 }
@@ -399,7 +399,7 @@ function animateBellDescent(onComplete?: () => void): void {
   container.className = 'bell-container';
   container.innerHTML = `
     <div class="divine-light"></div>
-    <div class="descending-bell"><img src="/img/Bell.png" alt="Bell" /></div>
+    <div class="descending-bell"><img src="./img/Bell.png" alt="Bell" /></div>
     <div class="bell-glow"></div>
   `;
   document.body.appendChild(container);

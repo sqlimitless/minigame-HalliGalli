@@ -25,8 +25,8 @@ export interface CardTarget {
 }
 
 export const FLOWER_IMAGES: Record<Flower, string> = {
-  rose: '/img/rose.png',
-  carnation: '/img/carnation.png',
-  sunflower: '/img/sunflower.png',
-  daisy: '/img/daisy.png',
+  rose: './img/rose.png',
+  carnation: './img/carnation.png',
+  sunflower: './img/sunflower.png',
+  daisy: './img/daisy.png',
 };

@@ -7,14 +7,14 @@ let bgmStarted = false;
 function startBGM(): void {
   if (bgmStarted) return;
   bgmStarted = true;
-  const bgm = new Audio('/sounds/bgm.mp3');
+  const bgm = new Audio('./sounds/bgm.mp3');
   bgm.volume = 0.2;
   bgm.loop = true;
   bgm.play().catch(() => {});
 }
 
 function playGameStartSound(): void {
-  const sound = new Audio('/sounds/gameStart.mp3');
+  const sound = new Audio('./sounds/gameStart.mp3');
   sound.volume = 1.0;
   sound.play().catch(() => {});
 }
@@ -232,7 +232,7 @@ export function handleCardPlay(playerIndex: number, velocity: number): boolean {
 
 // 종 사운드 재생
 function playBellSound(): void {
-  const sound = new Audio('/sounds/bellSound.mp3');
+  const sound = new Audio('./sounds/bellSound.mp3');
   sound.volume = 1.0;
   sound.play().catch(() => {});
 }

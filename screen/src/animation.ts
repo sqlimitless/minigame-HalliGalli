@@ -16,7 +16,7 @@ let shuffleSound: HTMLAudioElement | null = null;
 let shuffleSoundInterval: ReturnType<typeof setInterval> | null = null;
 
 function startShuffleSound(): void {
-  shuffleSound = new Audio('/sounds/flipcard.mp3');
+  shuffleSound = new Audio('./sounds/flipcard.mp3');
   shuffleSound.volume = 1.0;
 
   // Play immediately
@@ -24,7 +24,7 @@ function startShuffleSound(): void {
 
   // Repeat every 300ms for shuffle effect
   shuffleSoundInterval = setInterval(() => {
-    const sound = new Audio('/sounds/flipcard.mp3');
+    const sound = new Audio('./sounds/flipcard.mp3');
     sound.volume = 1.0;
     sound.play().catch(() => {});
   }, 300);
@@ -399,7 +399,7 @@ export function animateFlipRemainingCards(onComplete: () => void): void {
 
 export function animateBellDescent(onComplete: () => void): void {
   // Play holy spell cast sound for bell descent
-  const holySound = new Audio('/sounds/holy-spell-cast.mp3');
+  const holySound = new Audio('./sounds/holy-spell-cast.mp3');
   holySound.volume = 1.0;
   holySound.play().catch(() => {});
 
@@ -414,7 +414,7 @@ export function animateBellDescent(onComplete: () => void): void {
   container.className = 'bell-container';
   container.innerHTML = `
     <div class="divine-light"></div>
-    <div class="bell"><img src="/img/Bell.png" alt="Bell" /></div>
+    <div class="bell"><img src="./img/Bell.png" alt="Bell" /></div>
     <div class="bell-glow"></div>
   `;
   document.body.appendChild(container);
