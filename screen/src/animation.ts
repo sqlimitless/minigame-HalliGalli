@@ -10,6 +10,12 @@ const vmin = (v: number): number => Math.min(window.innerWidth, window.innerHeig
 
 // 전역 z-index 카운터 (새로 던진 카드가 항상 맨 위에 오도록)
 let playedCardZIndex = 500;
+const MAX_CARD_ZINDEX = 900;  // Keep below bell and UI elements (z-index 1000+)
+
+// Z-index 리셋 함수 (게임 리셋 시 호출)
+export function resetCardZIndex(): void {
+  playedCardZIndex = 500;
+}
 
 // Sound utilities
 let shuffleSound: HTMLAudioElement | null = null;
@@ -639,6 +645,10 @@ export function animateCardPlay(
   const baseDuration = Math.max(0.08, 1.2 / velocity);
 
   // 카드를 제일 위로 올리기 (매번 증가하는 z-index)
+  // Reset if getting too high to prevent conflicts with UI elements
+  if (playedCardZIndex >= MAX_CARD_ZINDEX) {
+    playedCardZIndex = 500;
+  }
   cardEl.style.zIndex = String(++playedCardZIndex);
 
   // 카드 애니메이션
@@ -1854,18 +1864,24 @@ function showResultMessage(text: string, type: 'success' | 'fail'): void {
 }
 
 // 카드 수집 애니메이션
-export function animateCollectCards(winnerIndex: number): void {
+export function animateCollectCards(winnerIndex: number, onComplete?: () => void): void {
   // 플레이된 카드와 중앙 남은 카드 모두 수집
   const playedCards = document.querySelectorAll('.card[data-played="true"]');
   const centerCards = document.querySelectorAll('.card[data-remaining="true"]');
   const allCards = [...playedCards, ...centerCards];
   const winnerSlot = document.getElementById(`player-${winnerIndex}`);
 
-  if (!winnerSlot || allCards.length === 0) return;
+  if (!winnerSlot || allCards.length === 0) {
+    onComplete?.();
+    return;
+  }
 
   const slotRect = winnerSlot.getBoundingClientRect();
   const targetX = slotRect.left + slotRect.width / 2;
   const targetY = slotRect.bottom + vmin(3);
+
+  let completedCount = 0;
+  const totalCards = allCards.length;
 
   allCards.forEach((card, i) => {
     const cardEl = card as HTMLElement;
@@ -1882,6 +1898,12 @@ export function animateCollectCards(winnerIndex: number): void {
       ease: 'power2.in',
       onComplete: () => {
         cardEl.remove();
+        completedCount++;
+
+        // Call onComplete after the last card finishes
+        if (completedCount === totalCards && onComplete) {
+          onComplete();
+        }
       },
     });
   });

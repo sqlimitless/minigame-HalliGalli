@@ -158,6 +158,7 @@ controller.on('player-eliminated', (data) => {
   const myIndex = controller.myPlayerIndex ?? 0;
   if (data.playerIndex === myIndex) {
     showNotification('💀 탈락!', 'fail');
+    cleanupSwipeDetection();
     cardDeckEl.style.display = 'none';
     bellAreaEl.style.display = 'none';
   }
@@ -172,6 +173,7 @@ controller.on('game-over', (data) => {
     showNotification(`Player ${data.winner + 1} 승리!`, 'info');
   }
   gameStarted = false;
+  cleanupSwipeDetection();
 });
 
 // 종 레이스 참가 확인
@@ -271,11 +273,38 @@ let touchStartTime = 0;
 let isSwiping = false;
 let currentSwipeCard: HTMLElement | null = null;
 
+// Store references to handlers for cleanup
+let touchStartHandler: ((e: TouchEvent) => void) | null = null;
+let touchMoveHandler: ((e: TouchEvent) => void) | null = null;
+let touchEndHandler: ((e: TouchEvent) => void) | null = null;
+
 // 카드 덱 스와이프 감지
 function setupSwipeDetection(): void {
-  cardDeckEl.addEventListener('touchstart', handleTouchStart, { passive: false });
-  cardDeckEl.addEventListener('touchmove', handleTouchMove, { passive: false });
-  cardDeckEl.addEventListener('touchend', handleTouchEnd);
+  // Clean up any existing listeners first
+  cleanupSwipeDetection();
+
+  touchStartHandler = handleTouchStart;
+  touchMoveHandler = handleTouchMove;
+  touchEndHandler = handleTouchEnd;
+
+  cardDeckEl.addEventListener('touchstart', touchStartHandler, { passive: false });
+  cardDeckEl.addEventListener('touchmove', touchMoveHandler, { passive: false });
+  cardDeckEl.addEventListener('touchend', touchEndHandler);
+}
+
+function cleanupSwipeDetection(): void {
+  if (touchStartHandler) {
+    cardDeckEl.removeEventListener('touchstart', touchStartHandler);
+    touchStartHandler = null;
+  }
+  if (touchMoveHandler) {
+    cardDeckEl.removeEventListener('touchmove', touchMoveHandler);
+    touchMoveHandler = null;
+  }
+  if (touchEndHandler) {
+    cardDeckEl.removeEventListener('touchend', touchEndHandler);
+    touchEndHandler = null;
+  }
 }
 
 function handleTouchStart(e: TouchEvent): void {

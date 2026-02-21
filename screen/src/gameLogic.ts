@@ -25,6 +25,9 @@ const state: GameState = {
   winner: null,
 };
 
+// Concurrency protection for ringBell
+let bellInProgress = false;
+
 // 콜백 함수들
 let onTurnChange: ((playerIndex: number) => void) | null = null;
 let onPlayerEliminated: ((playerIndex: number) => void) | null = null;
@@ -52,6 +55,7 @@ export function initGame(playerIndices: number[], deck: Card[]): void {
   state.centerCards = [];
   state.isGameOver = false;
   state.winner = null;
+  bellInProgress = false;  // Reset bell state on new game
 
   const playerCount = playerIndices.length;
   const cardsPerPlayer = Math.floor(deck.length / playerCount);
@@ -140,21 +144,14 @@ export function countFlowers(): Record<Flower, number> {
     daisy: 0,
   };
 
-  console.log('🌸 countFlowers debug:');
-  console.log('  - activePlayers:', state.activePlayers);
-  console.log('  - playedCards keys:', Array.from(state.playedCards.keys()));
-
   // 각 플레이어의 맨 위 카드만 세기 (보이는 카드)
   state.playedCards.forEach((cards, playerIdx) => {
-    console.log(`  - Player ${playerIdx}: ${cards.length} cards`);
     if (cards.length > 0) {
       const topCard = cards[cards.length - 1];
-      console.log(`    Top card: ${topCard.flower} x${topCard.count}`);
       counts[topCard.flower] += topCard.count;
     }
   });
 
-  console.log('🌸 countFlowers result:', JSON.stringify(counts));
   return counts;
 }
 
@@ -162,12 +159,18 @@ export function countFlowers(): Record<Flower, number> {
 export function hasFiveOfAny(): boolean {
   const counts = countFlowers();
   const result = Object.values(counts).some(count => count === 5);
-  console.log('🔔 hasFiveOfAny:', result, 'counts:', JSON.stringify(counts));
   return result;
 }
 
 // 종 치기
 export function ringBell(playerIndex: number): { success: boolean; flowerCount: Record<Flower, number>; collectedCards?: Card[]; penaltyCards?: Map<number, Card> } {
+  // Prevent concurrent bell processing
+  if (bellInProgress) {
+    console.log('🔔 ringBell blocked - already in progress');
+    return { success: false, flowerCount: countFlowers() };
+  }
+  bellInProgress = true;
+
   const flowerCount = countFlowers();
   const success = hasFiveOfAny();
   let collectedCards: Card[] | undefined;
@@ -197,6 +200,8 @@ export function ringBell(playerIndex: number): { success: boolean; flowerCount: 
 
   // 게임 종료 체크
   checkGameOver();
+
+  bellInProgress = false;  // Reset flag after processing
 
   return { success, flowerCount, collectedCards, penaltyCards };
 }
@@ -310,4 +315,9 @@ export function getWinner(): number | null {
 
 export function getPlayerCardCount(playerIndex: number): number {
   return (state.playerDecks.get(playerIndex)?.length || 0);
+}
+
+// Reset bell state (useful for game reset)
+export function resetBellState(): void {
+  bellInProgress = false;
 }

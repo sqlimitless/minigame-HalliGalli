@@ -388,6 +388,9 @@ export function handleBellHit(playerIndex: number, timestamp: number): void {
   if (gamePhase !== 'playing') return;
   if (bellLocked) return;  // 애니메이션 중이면 무시
 
+  // 종 레이스 시작 시 턴 타이머 정지 (타이머 만료로 인한 이중 ringBell 호출 방지)
+  stopTurnTimer();
+
   // 종 사운드 재생
   playBellSound();
 
@@ -479,7 +482,6 @@ function processBellRace(): void {
 
   // 답이 맞는지 먼저 확인
   const willSucceed = gameLogic.hasFiveOfAny();
-  console.log('🎯 processBellRace willSucceed:', willSucceed);
 
   if (willSucceed) {
     // 성공 시나리오
@@ -489,22 +491,20 @@ function processBellRace(): void {
       const result = gameLogic.ringBell(winner.playerIndex);
 
       // 성공: 먼저 카드 수집, 그 다음 성공 알림
-      animateCollectCards(winner.playerIndex);
-
-      // 카드 수집이 끝난 후 성공 알림 표시
-      setTimeout(() => {
+      // Wait for card collection animation to complete before showing success
+      animateCollectCards(winner.playerIndex, () => {
         animateBellSuccess(winner.playerIndex);
 
         if (result.collectedCards) {
           sendCardsCollected(winner.playerIndex, result.collectedCards);
         }
 
-        // 성공 알림 후 스택 동기화
+        // Sync stacks and unlock after success animation
         setTimeout(() => {
           syncCardStacks();
           bellLocked = false;
         }, 800);
-      }, 500);
+      });
     };
 
     if (hasCompetitors) {
